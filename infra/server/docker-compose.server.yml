@@ -37,10 +37,11 @@ services:
       - "127.0.0.1:3000:3000"
     environment:
       NODE_ENV: production
-      # Control plane is reachable on the host's localhost since both containers
-      # publish to 127.0.0.1. Using host-mode DNS keeps the portal Dockerfile
-      # unaware of docker-compose service names.
+      # Control plane is reachable via the hee docker network alias.
       HEE_API_URL: http://control-plane:5301
+      # Public origin — used by server-side redirects so they don't leak the
+      # container's internal bind address (0.0.0.0:3000) to the browser.
+      PORTAL_PUBLIC_URL: https://app.hee.la
     depends_on:
       control-plane:
         condition: service_started
