@@ -2,9 +2,12 @@ import { ConflictException, Injectable, NotFoundException } from "@nestjs/common
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { ApiToken } from "../../entities/api-token.entity";
+import { ProjectMember, type ProjectRole } from "../../entities/project-member.entity";
 import { Project } from "../../entities/project.entity";
+import { User } from "../../entities/user.entity";
 import { generateApiToken } from "../auth/token.util";
 import {
+  AddMemberDto,
   CreateProjectDto,
   IssueTokenDto,
   ProjectResponse,
@@ -18,7 +21,52 @@ export class ProjectsService {
     private readonly projects: Repository<Project>,
     @InjectRepository(ApiToken)
     private readonly tokens: Repository<ApiToken>,
+    @InjectRepository(User)
+    private readonly users: Repository<User>,
+    @InjectRepository(ProjectMember)
+    private readonly members: Repository<ProjectMember>,
   ) {}
+
+  async addMember(projectSlug: string, dto: AddMemberDto): Promise<{ userId: string; projectId: string; role: ProjectRole }> {
+    const project = await this.projects.findOne({ where: { slug: projectSlug } });
+    if (!project) throw new NotFoundException("project not found");
+
+    const email = dto.email.trim().toLowerCase();
+    let user = await this.users.findOne({ where: { email } });
+    if (!user) {
+      // Create a shell user so the invite lands on first sign-in.
+      user = await this.users.save(this.users.create({ email }));
+    }
+
+    const existing = await this.members.findOne({
+      where: { userId: user.userId, projectId: project.projectId },
+    });
+    if (existing) {
+      if (dto.role && dto.role !== existing.role) {
+        existing.role = dto.role;
+        await this.members.save(existing);
+      }
+      return {
+        userId: user.userId,
+        projectId: project.projectId,
+        role: existing.role,
+      };
+    }
+
+    const member = await this.members.save(
+      this.members.create({
+        userId: user.userId,
+        projectId: project.projectId,
+        role: dto.role ?? "owner",
+      }),
+    );
+
+    return {
+      userId: user.userId,
+      projectId: project.projectId,
+      role: member.role,
+    };
+  }
 
   async create(dto: CreateProjectDto): Promise<ProjectResponse> {
     const existing = await this.projects.findOne({ where: { slug: dto.slug } });

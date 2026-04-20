@@ -8,6 +8,7 @@ import {
 } from "@nestjs/common";
 import { AdminTokenGuard } from "./admin-token.guard";
 import {
+  AddMemberDto,
   CreateProjectDto,
   IssueTokenDto,
   ProjectResponse,
@@ -36,5 +37,13 @@ export class ProjectsController {
     @Body() dto: IssueTokenDto,
   ): Promise<TokenCreatedResponse> {
     return this.service.issueToken(slug, dto);
+  }
+
+  @Post(":slug/members")
+  async addMember(
+    @Param("slug") slug: string,
+    @Body() dto: AddMemberDto,
+  ): Promise<{ userId: string; projectId: string; role: string }> {
+    return this.service.addMember(slug, dto);
   }
 }

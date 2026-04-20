@@ -34,6 +34,16 @@ export class IssueTokenDto {
   name!: string;
 }
 
+export class AddMemberDto {
+  @IsString()
+  @MaxLength(320)
+  email!: string;
+
+  @IsOptional()
+  @IsString()
+  role?: "owner" | "member";
+}
+
 export class TokenCreatedResponse {
   tokenId!: string;
   prefix!: string;

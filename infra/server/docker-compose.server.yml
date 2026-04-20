@@ -27,6 +27,26 @@ services:
     networks:
       - hee
 
+  portal:
+    build:
+      context: ./portal
+      dockerfile: Dockerfile
+    container_name: hee-portal
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      NODE_ENV: production
+      # Control plane is reachable on the host's localhost since both containers
+      # publish to 127.0.0.1. Using host-mode DNS keeps the portal Dockerfile
+      # unaware of docker-compose service names.
+      HEE_API_URL: http://control-plane:5301
+    depends_on:
+      control-plane:
+        condition: service_started
+    networks:
+      - hee
+
   postgres:
     image: postgres:16-alpine
     container_name: hee-postgres

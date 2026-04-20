@@ -36,20 +36,37 @@ $SSH "mkdir -p $REMOTE_DIR/secrets $REMOTE_DIR/control-plane &&
 # ── 3. Write the env file for control-plane ───────────────────────────────
 PG_PASS=$($SSH "cat $REMOTE_DIR/secrets/postgres_password.txt")
 ADMIN_TOKEN=$($SSH "[ -f $REMOTE_DIR/secrets/admin_token.txt ] || openssl rand -hex 32 > $REMOTE_DIR/secrets/admin_token.txt; cat $REMOTE_DIR/secrets/admin_token.txt")
+JWT_SECRET=$($SSH "[ -f $REMOTE_DIR/secrets/auth_jwt_secret.txt ] || openssl rand -hex 48 > $REMOTE_DIR/secrets/auth_jwt_secret.txt; cat $REMOTE_DIR/secrets/auth_jwt_secret.txt")
+# Postmark token — provided via $POSTMARK_SERVER_TOKEN env (local); written to
+# secrets file on edge-1 so re-runs don't lose it.
+if [ -n "${POSTMARK_SERVER_TOKEN:-}" ]; then
+  $SSH "echo '$POSTMARK_SERVER_TOKEN' > $REMOTE_DIR/secrets/postmark_token.txt && chmod 600 $REMOTE_DIR/secrets/postmark_token.txt"
+fi
+POSTMARK_TOKEN=$($SSH "[ -f $REMOTE_DIR/secrets/postmark_token.txt ] && cat $REMOTE_DIR/secrets/postmark_token.txt || true")
+
 $SSH "cat > $REMOTE_DIR/control-plane.env <<EOF
 NODE_ENV=production
 PORT=5301
 DATABASE_URL=postgres://hee:${PG_PASS}@postgres:5432/hee
 ADMIN_BOOTSTRAP_TOKEN=${ADMIN_TOKEN}
+AUTH_JWT_SECRET=${JWT_SECRET}
+PORTAL_BASE_URL=https://app.hee.la
+POSTMARK_SERVER_TOKEN=${POSTMARK_TOKEN}
+POSTMARK_FROM_ADDRESS=Hee <auth@hee.la>
+POSTMARK_STREAM_ID=outbound
 EOF
 chmod 600 $REMOTE_DIR/control-plane.env"
 
-# ── 4. Rsync source (needs the full control-plane/ tree to build) ─────────
+# ── 4. Rsync source (needs the full control-plane/ + portal/ trees) ──────
 rsync -az --delete \
-  --exclude node_modules \
-  --exclude dist \
+  --exclude node_modules --exclude dist \
   -e "ssh -i $HOME/.ssh/colbin-edge -o StrictHostKeyChecking=accept-new" \
   "$REPO_ROOT/control-plane/" "root@$SERVER_IP:$REMOTE_DIR/control-plane/"
+
+rsync -az --delete \
+  --exclude node_modules --exclude .next --exclude dist \
+  -e "ssh -i $HOME/.ssh/colbin-edge -o StrictHostKeyChecking=accept-new" \
+  "$REPO_ROOT/portal/" "root@$SERVER_IP:$REMOTE_DIR/portal/"
 
 scp -i "$HOME/.ssh/colbin-edge" -o StrictHostKeyChecking=accept-new \
   "$SCRIPT_DIR/docker-compose.server.yml" \

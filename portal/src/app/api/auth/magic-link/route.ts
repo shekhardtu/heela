@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
+import { HeeApiError, heeApi } from "@/lib/hee-api";
 
 /**
- * Phase 1: stub that just records the request. Wire up to Resend + JWT cookies
- * in Phase 2 once we have a real portal flow.
- *
- * Expected body: { email: string }
+ * Proxy to the control plane's /v1/auth/request-magic-link. The control plane
+ * does find-or-create on the user row and sends the email via Postmark;
+ * we just forward the email and return the same 204-on-all-cases response
+ * for account-enumeration safety.
  */
 export async function POST(req: Request) {
   let body: { email?: unknown };
@@ -13,16 +14,23 @@ export async function POST(req: Request) {
   } catch {
     return NextResponse.json({ error: "invalid json" }, { status: 400 });
   }
-
-  const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+  const email =
+    typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
     return NextResponse.json({ error: "invalid email" }, { status: 400 });
   }
 
-  // TODO(phase-2): sign a short-lived JWT and email it via Resend.
-  //   const token = await new SignJWT({ email }).sign(jwtKey);
-  //   await resend.emails.send({ from: "hee <auth@hee.la>", to: email, subject: "Sign in to Hee", html: renderMagicLinkEmail(token) });
-  console.log(`[auth] magic-link requested for ${email}`);
+  try {
+    await heeApi.auth.requestMagicLink(email);
+  } catch (err) {
+    // Control plane down or rejected — still return 204 to the browser so
+    // attackers can't distinguish valid from invalid emails. Log internally.
+    if (err instanceof HeeApiError) {
+      console.error(`[portal] requestMagicLink failed (${err.status}):`, err.message);
+    } else {
+      console.error("[portal] requestMagicLink error:", err);
+    }
+  }
 
-  return NextResponse.json({ ok: true });
+  return new NextResponse(null, { status: 204 });
 }

@@ -41,9 +41,15 @@ hee.la, www.hee.la {
 }
 
 app.hee.la {
-  # Customer portal — placeholder until the Next.js build lands.
-  header Content-Type "text/html; charset=utf-8"
-  respond `<!doctype html><html><head><title>Hee Portal</title></head><body style="font-family:system-ui;padding:2rem"><h1>Portal</h1><p>Sign-in + dashboard coming soon.</p></body></html>` 200
+  # Portal — Next.js container on 127.0.0.1:3000, behind docker-compose.
+  reverse_proxy localhost:3000 {
+    transport http {
+      dial_timeout 2s
+    }
+  }
+  handle_errors {
+    respond "portal not deployed yet" 503
+  }
 }
 
 api.hee.la {
