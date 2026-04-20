@@ -1,6 +1,8 @@
 import { Module } from "@nestjs/common";
+import { APP_GUARD } from "@nestjs/core";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { ScheduleModule } from "@nestjs/schedule";
+import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { ApiToken } from "./entities/api-token.entity";
 import { Domain } from "./entities/domain.entity";
@@ -18,6 +20,10 @@ import { ProjectsModule } from "./modules/projects/projects.module";
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     ScheduleModule.forRoot(),
+    // Per-IP rate limits. Single-box in-memory for now; switch to Redis
+    // storage when we add a second edge in Phase 3. Global default is a
+    // generous safety net — expensive endpoints override via @Throttle().
+    ThrottlerModule.forRoot([{ ttl: 10_000, limit: 100 }]),
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
@@ -37,5 +43,6 @@ import { ProjectsModule } from "./modules/projects/projects.module";
     PortalModule,
     ProjectsModule,
   ],
+  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule {}

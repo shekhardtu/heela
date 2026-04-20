@@ -8,6 +8,7 @@ import {
   Req,
   UnauthorizedException,
 } from "@nestjs/common";
+import { Throttle } from "@nestjs/throttler";
 import type { FastifyRequest } from "fastify";
 import {
   MagicLinkCallbackDto,
@@ -27,7 +28,11 @@ import { AuthUserService } from "./auth-user.service";
 export class AuthUserController {
   constructor(private readonly service: AuthUserService) {}
 
+  // Magic-link is the email-cost endpoint — 5 per minute per IP is generous for
+  // a real human (they don't re-request 5 times in a minute) and shuts down
+  // bombers. Per-email quotas could be added in a follow-up.
   @Post("request-magic-link")
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @HttpCode(204)
   async request(
     @Body() dto: RequestMagicLinkDto,

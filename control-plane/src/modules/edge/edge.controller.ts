@@ -7,6 +7,7 @@ import {
   Query,
   Res,
 } from "@nestjs/common";
+import { SkipThrottle } from "@nestjs/throttler";
 import type { FastifyReply } from "fastify";
 import { DomainsService } from "../domains/domains.service";
 
@@ -18,7 +19,13 @@ import { DomainsService } from "../domains/domains.service";
  *
  * The resolve endpoint is the one Caddy will call per-request once we switch
  * to dynamic upstreams (Task #8). For now it's only exercised by tests.
+ *
+ * Throttling is disabled on this controller — Caddy hits these from its own
+ * IP on every TLS handshake / resolve, so a per-IP rate limit would kneecap
+ * legitimate traffic. Abuse protection for these lives at Caddy (IP allowlist
+ * via systemd/nftables if needed) and at the cheap indexed Postgres lookup.
  */
+@SkipThrottle()
 @Controller()
 export class EdgeController {
   constructor(private readonly domains: DomainsService) {}
