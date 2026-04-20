@@ -12,6 +12,6 @@ import { SessionGuard } from "./session.guard";
   imports: [TypeOrmModule.forFeature([User, Session, ProjectMember])],
   controllers: [AuthUserController],
   providers: [AuthUserService, PostmarkService, SessionGuard],
-  exports: [AuthUserService, SessionGuard],
+  exports: [AuthUserService, SessionGuard, PostmarkService],
 })
 export class AuthUserModule {}

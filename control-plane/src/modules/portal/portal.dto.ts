@@ -1,4 +1,6 @@
 import {
+  IsEmail,
+  IsIn,
   IsObject,
   IsOptional,
   IsString,
@@ -81,4 +83,46 @@ export class PortalDomainResponse {
   verifiedAt!: string | null;
   metadata!: Record<string, unknown>;
   createdAt!: string;
+}
+
+export class CreateInvitationDto {
+  @IsEmail()
+  @MaxLength(255)
+  email!: string;
+
+  @IsIn(["owner", "member"])
+  role!: "owner" | "member";
+}
+
+export class AcceptInvitationDto {
+  @IsString()
+  @MinLength(32)
+  token!: string;
+}
+
+export class PortalInvitationResponse {
+  invitationId!: string;
+  email!: string;
+  role!: "owner" | "member";
+  expiresAt!: string;
+  createdAt!: string;
+  invitedByEmail!: string | null;
+}
+
+export class InvitationCreatedResponse extends PortalInvitationResponse {
+  /** Full accept-link URL. Also emailed to the invitee. */
+  acceptUrl!: string;
+}
+
+export class AcceptedInvitationResponse {
+  projectSlug!: string;
+  projectName!: string;
+  role!: "owner" | "member";
+}
+
+export class PortalMemberResponse {
+  userId!: string;
+  email!: string;
+  role!: "owner" | "member";
+  joinedAt!: string;
 }

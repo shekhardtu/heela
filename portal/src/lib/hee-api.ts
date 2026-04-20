@@ -184,6 +184,59 @@ export const heeApi = {
         { session: sessionToken },
       );
     },
+
+    async listMembers(sessionToken: string, slug: string): Promise<PortalMember[]> {
+      const res = await raw(
+        "GET",
+        `/v1/portal/projects/${encodeURIComponent(slug)}/members`,
+        { session: sessionToken },
+      );
+      return json(res);
+    },
+    async listInvitations(
+      sessionToken: string,
+      slug: string,
+    ): Promise<PortalInvitation[]> {
+      const res = await raw(
+        "GET",
+        `/v1/portal/projects/${encodeURIComponent(slug)}/invitations`,
+        { session: sessionToken },
+      );
+      return json(res);
+    },
+    async createInvitation(
+      sessionToken: string,
+      slug: string,
+      body: { email: string; role: "owner" | "member" },
+    ): Promise<PortalInvitation & { acceptUrl: string }> {
+      const res = await raw(
+        "POST",
+        `/v1/portal/projects/${encodeURIComponent(slug)}/invitations`,
+        { session: sessionToken, body },
+      );
+      return json(res);
+    },
+    async revokeInvitation(
+      sessionToken: string,
+      slug: string,
+      invitationId: string,
+    ): Promise<void> {
+      await raw(
+        "DELETE",
+        `/v1/portal/projects/${encodeURIComponent(slug)}/invitations/${encodeURIComponent(invitationId)}`,
+        { session: sessionToken },
+      );
+    },
+    async acceptInvitation(
+      sessionToken: string,
+      token: string,
+    ): Promise<{ projectSlug: string; projectName: string; role: "owner" | "member" }> {
+      const res = await raw("POST", "/v1/portal/invitations/accept", {
+        session: sessionToken,
+        body: { token },
+      });
+      return json(res);
+    },
   },
 };
 
@@ -215,4 +268,20 @@ export interface PortalDomain {
   verifiedAt: string | null;
   metadata: Record<string, unknown>;
   createdAt: string;
+}
+
+export interface PortalMember {
+  userId: string;
+  email: string;
+  role: "owner" | "member";
+  joinedAt: string;
+}
+
+export interface PortalInvitation {
+  invitationId: string;
+  email: string;
+  role: "owner" | "member";
+  expiresAt: string;
+  createdAt: string;
+  invitedByEmail: string | null;
 }

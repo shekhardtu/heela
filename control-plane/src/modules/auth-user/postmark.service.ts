@@ -35,6 +35,49 @@ export class PostmarkService implements OnModuleInit {
     );
   }
 
+  async sendInvitation(params: {
+    to: string;
+    link: string;
+    projectName: string;
+    invitedByEmail: string | null;
+    role: "owner" | "member";
+  }): Promise<void> {
+    const subject = `You've been invited to ${params.projectName} on Hee`;
+    const inviter = params.invitedByEmail ?? "a teammate";
+    const roleLabel = params.role === "owner" ? "an owner" : "a member";
+    const textBody =
+      `${inviter} invited you to join "${params.projectName}" on Hee as ${roleLabel}.\n\n` +
+      `Accept the invite:\n${params.link}\n\n` +
+      `This link expires in 7 days. If you weren't expecting this, you can ignore this email.`;
+    const htmlBody = `
+      <div style="font-family:system-ui,sans-serif;max-width:480px;margin:2rem auto;color:#0f172a">
+        <h2 style="margin:0 0 8px 0">You've been invited to ${escapeHtml(params.projectName)}</h2>
+        <p style="color:#475569;margin:0 0 24px">${escapeHtml(inviter)} invited you to join <strong>${escapeHtml(params.projectName)}</strong> on Hee as ${roleLabel}.</p>
+        <p><a href="${params.link}" style="display:inline-block;padding:10px 18px;border-radius:8px;background:#0f172a;color:#fff;text-decoration:none;font-weight:500">Accept invitation</a></p>
+        <p style="margin-top:24px;color:#94a3b8;font-size:12px">If the button doesn't work, paste this into your browser:<br/><span style="word-break:break-all">${params.link}</span></p>
+        <p style="margin-top:24px;color:#94a3b8;font-size:12px">Expires in 7 days. Not expecting this? Ignore this email.</p>
+      </div>`;
+
+    if (!this.client) {
+      this.logger.log(`[dev] would send invite to ${params.to}: ${params.link}`);
+      return;
+    }
+
+    try {
+      await this.client.sendEmail({
+        From: this.fromAddress,
+        To: params.to,
+        Subject: subject,
+        TextBody: textBody,
+        HtmlBody: htmlBody,
+        MessageStream: this.streamId,
+      });
+    } catch (err) {
+      this.logger.error(`Postmark invite send failed for ${params.to}`, err as Error);
+      throw err;
+    }
+  }
+
   async sendMagicLink(params: {
     to: string;
     link: string;
@@ -71,4 +114,12 @@ export class PostmarkService implements OnModuleInit {
       throw err;
     }
   }
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }

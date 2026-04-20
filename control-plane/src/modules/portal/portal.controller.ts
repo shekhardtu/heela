@@ -14,10 +14,17 @@ import {
   SessionGuard,
   requireProjectAccess,
 } from "../auth-user/session.guard";
+import { InvitationsService } from "./invitations.service";
 import {
+  AcceptInvitationDto,
+  AcceptedInvitationResponse,
+  CreateInvitationDto,
   CreateProjectDto,
+  InvitationCreatedResponse,
   IssueTokenDto,
   PortalDomainResponse,
+  PortalInvitationResponse,
+  PortalMemberResponse,
   PortalProjectResponse,
   PortalTokenResponse,
   RegisterDomainDto,
@@ -33,7 +40,10 @@ import { PortalService } from "./portal.service";
 @Controller("v1/portal")
 @UseGuards(SessionGuard)
 export class PortalController {
-  constructor(private readonly service: PortalService) {}
+  constructor(
+    private readonly service: PortalService,
+    private readonly invites: InvitationsService,
+  ) {}
 
   // ── Projects ──────────────────────────────────────────────────────────
 
@@ -116,5 +126,56 @@ export class PortalController {
   ): Promise<void> {
     const { projectId } = requireProjectAccess(req, slug);
     await this.service.removeDomain(projectId, hostname);
+  }
+
+  // ── Members + Invitations ─────────────────────────────────────────────
+
+  @Get("projects/:slug/members")
+  async listMembers(
+    @Param("slug") slug: string,
+    @Req() req: FastifyRequest,
+  ): Promise<PortalMemberResponse[]> {
+    const { projectId } = requireProjectAccess(req, slug);
+    return this.invites.listMembers(projectId);
+  }
+
+  @Post("projects/:slug/invitations")
+  async createInvitation(
+    @Param("slug") slug: string,
+    @Body() dto: CreateInvitationDto,
+    @Req() req: FastifyRequest,
+  ): Promise<InvitationCreatedResponse> {
+    const { projectId } = requireProjectAccess(req, slug, "owner");
+    return this.invites.invite(projectId, req.portalAuth!.userId, dto);
+  }
+
+  @Get("projects/:slug/invitations")
+  async listInvitations(
+    @Param("slug") slug: string,
+    @Req() req: FastifyRequest,
+  ): Promise<PortalInvitationResponse[]> {
+    const { projectId } = requireProjectAccess(req, slug);
+    return this.invites.listPending(projectId);
+  }
+
+  @Delete("projects/:slug/invitations/:invitationId")
+  @HttpCode(204)
+  async revokeInvitation(
+    @Param("slug") slug: string,
+    @Param("invitationId") invitationId: string,
+    @Req() req: FastifyRequest,
+  ): Promise<void> {
+    const { projectId } = requireProjectAccess(req, slug, "owner");
+    await this.invites.revoke(projectId, invitationId);
+  }
+
+  // Accept is intentionally NOT scoped to a project — the token itself
+  // carries the project, and the acceptor might not be a member yet.
+  @Post("invitations/accept")
+  async acceptInvitation(
+    @Body() dto: AcceptInvitationDto,
+    @Req() req: FastifyRequest,
+  ): Promise<AcceptedInvitationResponse> {
+    return this.invites.accept(req.portalAuth!.userId, dto.token);
   }
 }

@@ -46,6 +46,12 @@ export default async function ProjectPage(props: PageProps) {
         </div>
         <div className="flex items-center gap-2">
           <Link
+            href={`/projects/${slug}/members`}
+            className="btn-ghost text-sm"
+          >
+            Members
+          </Link>
+          <Link
             href={`/projects/${slug}/tokens`}
             className="btn-ghost text-sm"
           >

@@ -31,3 +31,4 @@ coverage/
 # caddy runtime
 caddy-data/
 caddy-config/
+portal/tsconfig.tsbuildinfo
