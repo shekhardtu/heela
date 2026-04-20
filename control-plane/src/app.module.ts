@@ -10,6 +10,7 @@ import { User } from "./entities/user.entity";
 import { AuthUserModule } from "./modules/auth-user/auth-user.module";
 import { DomainsModule } from "./modules/domains/domains.module";
 import { EdgeModule } from "./modules/edge/edge.module";
+import { PortalModule } from "./modules/portal/portal.module";
 import { ProjectsModule } from "./modules/projects/projects.module";
 
 @Module({
@@ -31,6 +32,7 @@ import { ProjectsModule } from "./modules/projects/projects.module";
     AuthUserModule,
     DomainsModule,
     EdgeModule,
+    PortalModule,
     ProjectsModule,
   ],
 })

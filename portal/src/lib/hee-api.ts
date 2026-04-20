@@ -110,4 +110,109 @@ export const heeApi = {
       return json(res);
     },
   },
+
+  // ── Portal-scoped calls (session cookie) ────────────────────────────────
+  portal: {
+    async createProject(
+      sessionToken: string,
+      body: { name: string; slug: string; upstreamUrl: string; upstreamHost?: string },
+    ): Promise<PortalProject> {
+      const res = await raw("POST", "/v1/portal/projects", { session: sessionToken, body });
+      return json(res);
+    },
+    async getProject(sessionToken: string, slug: string): Promise<PortalProject> {
+      const res = await raw("GET", `/v1/portal/projects/${encodeURIComponent(slug)}`, {
+        session: sessionToken,
+      });
+      return json(res);
+    },
+    async listTokens(sessionToken: string, slug: string): Promise<PortalToken[]> {
+      const res = await raw(
+        "GET",
+        `/v1/portal/projects/${encodeURIComponent(slug)}/tokens`,
+        { session: sessionToken },
+      );
+      return json(res);
+    },
+    async issueToken(
+      sessionToken: string,
+      slug: string,
+      body: { name: string },
+    ): Promise<PortalToken & { token: string }> {
+      const res = await raw(
+        "POST",
+        `/v1/portal/projects/${encodeURIComponent(slug)}/tokens`,
+        { session: sessionToken, body },
+      );
+      return json(res);
+    },
+    async revokeToken(sessionToken: string, slug: string, tokenId: string): Promise<void> {
+      await raw(
+        "DELETE",
+        `/v1/portal/projects/${encodeURIComponent(slug)}/tokens/${encodeURIComponent(tokenId)}`,
+        { session: sessionToken },
+      );
+    },
+    async listDomains(sessionToken: string, slug: string): Promise<PortalDomain[]> {
+      const res = await raw(
+        "GET",
+        `/v1/portal/projects/${encodeURIComponent(slug)}/domains`,
+        { session: sessionToken },
+      );
+      return json(res);
+    },
+    async registerDomain(
+      sessionToken: string,
+      slug: string,
+      body: { hostname: string; metadata?: Record<string, unknown> },
+    ): Promise<PortalDomain> {
+      const res = await raw(
+        "POST",
+        `/v1/portal/projects/${encodeURIComponent(slug)}/domains`,
+        { session: sessionToken, body },
+      );
+      return json(res);
+    },
+    async removeDomain(
+      sessionToken: string,
+      slug: string,
+      hostname: string,
+    ): Promise<void> {
+      await raw(
+        "DELETE",
+        `/v1/portal/projects/${encodeURIComponent(slug)}/domains/${encodeURIComponent(hostname)}`,
+        { session: sessionToken },
+      );
+    },
+  },
 };
+
+export interface PortalProject {
+  projectId: string;
+  name: string;
+  slug: string;
+  upstreamUrl: string;
+  upstreamHost: string | null;
+  enabled: boolean;
+  role: "owner" | "member";
+  domainCount: number;
+  tokenCount: number;
+  createdAt: string;
+}
+
+export interface PortalToken {
+  tokenId: string;
+  name: string;
+  prefix: string;
+  lastUsedAt: string | null;
+  revokedAt: string | null;
+  createdAt: string;
+}
+
+export interface PortalDomain {
+  hostname: string;
+  verified: boolean;
+  verifiedAt: string | null;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+}

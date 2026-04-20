@@ -17,9 +17,14 @@ export default async function ProjectsPage() {
             Signed in as <span className="font-mono">{user.email}</span>
           </p>
         </div>
-        <form action="/api/auth/sign-out" method="post">
-          <button className="btn-ghost text-sm">Sign out</button>
-        </form>
+        <div className="flex items-center gap-2">
+          <Link href="/projects/new" className="btn-primary text-sm">
+            New project
+          </Link>
+          <form action="/api/auth/sign-out" method="post">
+            <button className="btn-ghost text-sm">Sign out</button>
+          </form>
+        </div>
       </header>
 
       {user.projects.length === 0 ? (
