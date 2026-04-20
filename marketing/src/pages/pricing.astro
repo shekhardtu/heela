@@ -1,0 +1,169 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+
+const plans = [
+  {
+    name: "Free",
+    price: "€0",
+    unit: "/mo",
+    domains: "3 domains",
+    tagline: "Try it on your side project.",
+    cta: "Start free",
+    ctaHref: "https://app.hee.la/login",
+    highlight: false,
+    features: [
+      "3 custom domains",
+      "Automatic TLS (Let's Encrypt)",
+      "Per-project API token",
+      "Community support",
+    ],
+  },
+  {
+    name: "Pro",
+    price: "€19",
+    unit: "/mo",
+    domains: "25 domains",
+    tagline: "Small SaaS with real customers.",
+    cta: "Start Pro",
+    ctaHref: "https://app.hee.la/login",
+    highlight: true,
+    features: [
+      "25 custom domains",
+      "Automatic TLS + HTTP/2 + HTTP/3",
+      "Per-project API tokens + RBAC",
+      "Email support",
+      "99.9% uptime SLA",
+    ],
+  },
+  {
+    name: "Scale",
+    price: "€49",
+    unit: "/mo",
+    domains: "100 domains",
+    tagline: "Growing — every customer has their own domain.",
+    cta: "Start Scale",
+    ctaHref: "https://app.hee.la/login",
+    highlight: false,
+    features: [
+      "100 custom domains",
+      "Multi-region edge (beta)",
+      "Team members + audit log",
+      "Priority support",
+      "99.95% uptime SLA",
+    ],
+  },
+  {
+    name: "Enterprise",
+    price: "Custom",
+    unit: "",
+    domains: "Unlimited",
+    tagline: "Dedicated edge, SSO, contracts.",
+    cta: "Talk to us",
+    ctaHref: "mailto:sales@hee.la",
+    highlight: false,
+    features: [
+      "Unlimited domains",
+      "Dedicated edge boxes",
+      "BYO SSL certs",
+      "SSO / SAML",
+      "SOC2 report",
+      "99.99% uptime SLA",
+    ],
+  },
+];
+---
+
+<BaseLayout title="Pricing — Hee" description="Custom domain infrastructure priced like a tool, not a platform. Free tier forever, Pro €19/mo, Scale €49/mo.">
+  <main class="mx-auto max-w-6xl px-6 pt-16 pb-24 md:pt-24">
+    <div class="mx-auto max-w-2xl text-center">
+      <h1 class="text-4xl font-semibold tracking-tight md:text-5xl">Pricing</h1>
+      <p class="mt-4 text-lg text-ink-700">
+        Start free. Upgrade when real customers show up. Cancel if Cloudflare ever gets reasonable.
+      </p>
+    </div>
+
+    <div class="mt-16 grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+      {plans.map((p) => (
+        <div
+          class:list={[
+            "flex flex-col rounded-xl border bg-white p-6",
+            p.highlight ? "border-ink-900 shadow-lg" : "border-ink-200",
+          ]}
+        >
+          {p.highlight && (
+            <div class="-mt-10 mb-4 self-start rounded-full bg-ink-900 px-3 py-1 text-xs font-semibold text-white">
+              Most popular
+            </div>
+          )}
+          <h2 class="text-lg font-semibold">{p.name}</h2>
+          <p class="mt-1 text-xs text-ink-500">{p.tagline}</p>
+          <div class="mt-5 flex items-baseline gap-1">
+            <span class="text-4xl font-semibold tracking-tight">{p.price}</span>
+            <span class="text-sm text-ink-500">{p.unit}</span>
+          </div>
+          <p class="mt-1 text-xs font-medium text-ink-500">{p.domains}</p>
+
+          <a
+            href={p.ctaHref}
+            class:list={[
+              "mt-6 inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition",
+              p.highlight
+                ? "bg-ink-900 text-white hover:bg-ink-950"
+                : "border border-ink-200 text-ink-900 hover:bg-ink-50",
+            ]}
+          >
+            {p.cta}
+          </a>
+
+          <ul class="mt-6 space-y-2 text-sm">
+            {p.features.map((f) => (
+              <li class="flex items-start gap-2">
+                <svg class="mt-0.5 h-4 w-4 shrink-0 text-green-600" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M16.704 5.29a1 1 0 0 1 0 1.42l-8 8a1 1 0 0 1-1.41 0l-4-4a1 1 0 1 1 1.41-1.42l3.3 3.3 7.29-7.3a1 1 0 0 1 1.41 0Z" clip-rule="evenodd" />
+                </svg>
+                <span class="text-ink-700">{f}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
+
+    <!-- FAQ -->
+    <section class="mt-24">
+      <h2 class="text-center text-3xl font-semibold tracking-tight">FAQ</h2>
+      <div class="mx-auto mt-10 max-w-3xl space-y-4">
+        <details class="card cursor-pointer">
+          <summary class="font-semibold">What counts as a "custom domain"?</summary>
+          <p class="mt-3 text-sm text-ink-700">
+            Any FQDN you register via the API or portal. Subdomains of a single apex count individually. Wildcard hostnames (coming soon) count as one.
+          </p>
+        </details>
+        <details class="card cursor-pointer">
+          <summary class="font-semibold">What happens if I exceed my plan's limit?</summary>
+          <p class="mt-3 text-sm text-ink-700">
+            New registrations return a 402. Existing domains keep serving traffic. Upgrade in the portal or email us — we'll never break your customers.
+          </p>
+        </details>
+        <details class="card cursor-pointer">
+          <summary class="font-semibold">Do you count cert re-issuance against Let's Encrypt limits?</summary>
+          <p class="mt-3 text-sm text-ink-700">
+            Per-customer domain, not per-Hee-account. Your 50-cert/week limit is on your customer's registered domain. We won't hit it at reasonable scale.
+          </p>
+        </details>
+        <details class="card cursor-pointer">
+          <summary class="font-semibold">Can I self-host the edge instead?</summary>
+          <p class="mt-3 text-sm text-ink-700">
+            Yes. The edge (Caddy + control plane) is open source. Use Hee as SaaS for convenience, or run the same binaries on your own box when scale or compliance demands it.
+          </p>
+        </details>
+        <details class="card cursor-pointer">
+          <summary class="font-semibold">Is there a usage-based tier above Scale?</summary>
+          <p class="mt-3 text-sm text-ink-700">
+            Yes — Enterprise is custom. Typical deals: dedicated edge pool, €X per domain/mo above a commit, pooled SLA credits. Email <a class="underline" href="mailto:sales@hee.la">sales@hee.la</a>.
+          </p>
+        </details>
+      </div>
+    </section>
+  </main>
+</BaseLayout>

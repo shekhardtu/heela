@@ -1,0 +1,49 @@
+---
+const year = new Date().getFullYear();
+---
+
+<footer class="mt-24 border-t border-ink-200 bg-ink-50/40">
+  <div class="mx-auto grid max-w-6xl gap-10 px-6 py-12 md:grid-cols-4">
+    <div>
+      <a href="/" class="flex items-center gap-2 font-mono font-semibold">
+        <span class="inline-flex h-6 w-6 items-center justify-center rounded-md bg-ink-900 text-xs font-bold text-white">h</span>
+        hee
+      </a>
+      <p class="mt-3 text-sm text-ink-500">
+        Custom domains for SaaS — done right.
+      </p>
+    </div>
+
+    <div>
+      <h3 class="text-xs font-semibold uppercase tracking-wider text-ink-500">Product</h3>
+      <ul class="mt-3 space-y-2 text-sm">
+        <li><a class="text-ink-700 hover:text-ink-900" href="/features">Features</a></li>
+        <li><a class="text-ink-700 hover:text-ink-900" href="/pricing">Pricing</a></li>
+        <li><a class="text-ink-700 hover:text-ink-900" href="/compare">Compare</a></li>
+      </ul>
+    </div>
+
+    <div>
+      <h3 class="text-xs font-semibold uppercase tracking-wider text-ink-500">Resources</h3>
+      <ul class="mt-3 space-y-2 text-sm">
+        <li><a class="text-ink-700 hover:text-ink-900" href="https://docs.hee.la">Docs</a></li>
+        <li><a class="text-ink-700 hover:text-ink-900" href="https://status.hee.la">Status</a></li>
+        <li><a class="text-ink-700 hover:text-ink-900" href="mailto:ops@hee.la">Contact</a></li>
+      </ul>
+    </div>
+
+    <div>
+      <h3 class="text-xs font-semibold uppercase tracking-wider text-ink-500">Company</h3>
+      <ul class="mt-3 space-y-2 text-sm">
+        <li><a class="text-ink-700 hover:text-ink-900" href="/legal/terms">Terms</a></li>
+        <li><a class="text-ink-700 hover:text-ink-900" href="/legal/privacy">Privacy</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="border-t border-ink-200">
+    <div class="mx-auto flex max-w-6xl items-center justify-between px-6 py-4 text-xs text-ink-500">
+      <span>© {year} Hee</span>
+      <span class="font-mono">Built on open standards</span>
+    </div>
+  </div>
+</footer>

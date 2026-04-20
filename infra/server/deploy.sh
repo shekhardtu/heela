@@ -68,9 +68,28 @@ rsync -az --delete \
   -e "ssh -i $HOME/.ssh/colbin-edge -o StrictHostKeyChecking=accept-new" \
   "$REPO_ROOT/portal/" "root@$SERVER_IP:$REMOTE_DIR/portal/"
 
+# ── 4b. Build + rsync the marketing static site ──────────────────────────
+# Caddy serves /opt/hee/marketing/dist directly — no container involved.
+if [ -d "$REPO_ROOT/marketing" ]; then
+  echo "→ Building marketing site"
+  (cd "$REPO_ROOT/marketing" && \
+    if [ ! -d node_modules ]; then npm install --no-audit --no-fund; fi && \
+    npm run build)
+  $SSH "mkdir -p $REMOTE_DIR/marketing"
+  rsync -az --delete \
+    -e "ssh -i $HOME/.ssh/colbin-edge -o StrictHostKeyChecking=accept-new" \
+    "$REPO_ROOT/marketing/dist/" "root@$SERVER_IP:$REMOTE_DIR/marketing/dist/"
+fi
+
 scp -i "$HOME/.ssh/colbin-edge" -o StrictHostKeyChecking=accept-new \
   "$SCRIPT_DIR/docker-compose.server.yml" \
   "root@$SERVER_IP:$REMOTE_DIR/docker-compose.yml"
+
+# ── 4c. Update Caddyfile on the host + reload ────────────────────────────
+scp -i "$HOME/.ssh/colbin-edge" -o StrictHostKeyChecking=accept-new \
+  "$REPO_ROOT/infra/caddy/Caddyfile" \
+  "root@$SERVER_IP:/etc/caddy/Caddyfile"
+$SSH "caddy fmt --overwrite /etc/caddy/Caddyfile && systemctl reload caddy"
 
 # ── 5. Build + start ──────────────────────────────────────────────────────
 $SSH "cd $REMOTE_DIR && docker compose up -d --build"

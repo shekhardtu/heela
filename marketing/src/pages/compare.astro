@@ -1,0 +1,85 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+
+interface Row {
+  label: string;
+  hee: string;
+  cfSaas: string;
+  approx: string;
+}
+
+const rows: Row[] = [
+  { label: "Entry price", hee: "€0 (3 domains)", cfSaas: "Enterprise contract", approx: "$29/mo" },
+  { label: "Custom Origin SNI", hee: "Yes", cfSaas: "Enterprise only", approx: "Yes" },
+  { label: "Worker / middleware at edge", hee: "Planned", cfSaas: "Paid tier only, and routes break", approx: "No" },
+  { label: "Own the edge", hee: "Yes (open source)", cfSaas: "No", approx: "No" },
+  { label: "Multi-tenant API", hee: "Yes", cfSaas: "Custom Hostnames API", approx: "Yes" },
+  { label: "First-request cert issue", hee: "~3 s", cfSaas: "Pre-provisioned", approx: "~5-8 s" },
+  { label: "Per-tenant metadata passthrough", hee: "Yes", cfSaas: "No (route yourself)", approx: "Limited" },
+  { label: "Self-hostable", hee: "Yes", cfSaas: "No", approx: "No" },
+  { label: "Public status page", hee: "status.hee.la (Upptime)", cfSaas: "cloudflarestatus.com", approx: "statuspage.io" },
+];
+---
+
+<BaseLayout title="Hee vs Cloudflare for SaaS vs Approximated" description="Why we built a shared edge instead of paying Cloudflare Enterprise or Approximated's markup.">
+  <main class="mx-auto max-w-6xl px-6 pt-16 pb-24 md:pt-24">
+    <div class="mx-auto max-w-3xl text-center">
+      <h1 class="text-4xl font-semibold tracking-tight md:text-5xl">Hee vs the alternatives</h1>
+      <p class="mt-4 text-lg text-ink-700">
+        We built Hee because we hit every gotcha in this table. Here's the honest comparison.
+      </p>
+    </div>
+
+    <!-- Why we exist -->
+    <section class="mx-auto mt-16 max-w-3xl space-y-6 text-ink-700">
+      <div class="card">
+        <h2 class="font-semibold text-ink-900">Cloudflare for SaaS</h2>
+        <p class="mt-2 text-sm">
+          Cloudflare's SaaS feature set is the industry default. It's also locked behind Enterprise for the parts you need the moment you go past "demo that works on the hero section." Custom Origin SNI, wildcard certs, predictable Worker routing on the fallback origin — all Enterprise. If you're shipping a real multi-tenant product with custom domains, you pay five figures a year or build your own edge.
+        </p>
+      </div>
+      <div class="card">
+        <h2 class="font-semibold text-ink-900">Approximated</h2>
+        <p class="mt-2 text-sm">
+          Approximated does a lot right. It's also a hosted, closed-source relay priced per-domain at amounts that start adding up at ~200 customers. Hee aims to be the Linux to Approximated's macOS: same ergonomics, lower cost, runs on your own infra when you want.
+        </p>
+      </div>
+      <div class="card">
+        <h2 class="font-semibold text-ink-900">Rolling your own</h2>
+        <p class="mt-2 text-sm">
+          Totally viable. Caddy's <code class="font-mono text-xs">on_demand_tls</code> + Postgres + one €5 box covers 80% of what Hee does. Run it yourself if the API surface and multi-tenant portal aren't worth €19/mo. We'd rather you self-host than pay Cloudflare Enterprise.
+        </p>
+      </div>
+    </section>
+
+    <!-- Table -->
+    <section class="mt-20">
+      <h2 class="text-center text-2xl font-semibold tracking-tight">Side-by-side</h2>
+      <div class="mt-8 overflow-x-auto rounded-xl border border-ink-200">
+        <table class="w-full text-sm">
+          <thead class="bg-ink-50 text-left text-xs uppercase tracking-wider text-ink-500">
+            <tr>
+              <th class="px-4 py-3">Capability</th>
+              <th class="px-4 py-3">Hee</th>
+              <th class="px-4 py-3">Cloudflare for SaaS</th>
+              <th class="px-4 py-3">Approximated</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr class="border-t border-ink-200">
+                <td class="px-4 py-3 font-medium">{r.label}</td>
+                <td class="px-4 py-3 text-ink-700">{r.hee}</td>
+                <td class="px-4 py-3 text-ink-500">{r.cfSaas}</td>
+                <td class="px-4 py-3 text-ink-500">{r.approx}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p class="mt-4 text-xs text-ink-500">
+        Updated 2026-04. If you spot something wrong, email <a class="underline" href="mailto:ops@hee.la">ops@hee.la</a> and we'll fix it same-day.
+      </p>
+    </section>
+  </main>
+</BaseLayout>

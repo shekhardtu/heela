@@ -1,0 +1,105 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+
+const groups = [
+  {
+    title: "For the engineer",
+    items: [
+      {
+        title: "Plain HTTP API",
+        body: "POST a hostname, get a CNAME target back. No SDK required — curl works. Language SDKs for TS, Python, Go ship separately.",
+      },
+      {
+        title: "Original Host preserved",
+        body: "The upstream request carries the customer's original hostname in the Host header. Route inside your app exactly as if the customer typed your subdomain.",
+      },
+      {
+        title: "Metadata passthrough",
+        body: "Attach a JSON blob to each domain. /v1/edge/resolve gives it back on lookup. Stick workspace IDs, theme overrides, feature flags, anything.",
+      },
+      {
+        title: "Automatic DNS verification",
+        body: "Background probes check each customer's CNAME every 5 minutes. Verified/unverified shows in the portal so your support team knows exactly where DNS propagation stands.",
+      },
+    ],
+  },
+  {
+    title: "For the TLS anxiety",
+    items: [
+      {
+        title: "Let's Encrypt, on demand",
+        body: "Certs issue on the first HTTPS request — no pre-provisioning. ~3 s cold, <10 ms for every subsequent request from cache.",
+      },
+      {
+        title: "Auto-renewal",
+        body: "Caddy renews certs at 60 days. If renewal fails (DNS changed, etc.), you get an alert before the old cert expires.",
+      },
+      {
+        title: "HSTS-safe",
+        body: "We never issue wildcard certs for a customer's apex — always single-hostname. Your customer's HSTS stays their own decision.",
+      },
+    ],
+  },
+  {
+    title: "For the multi-tenant app",
+    items: [
+      {
+        title: "Projects",
+        body: "One Hee account, many projects. Each project is a separate API-token scope, billing entity, and domain namespace.",
+      },
+      {
+        title: "Per-project API tokens",
+        body: "Issued in the portal, shown once, revocable anytime. No shared master token you'd lose sleep over.",
+      },
+      {
+        title: "Role-based portal access",
+        body: "Invite teammates as Owner, Admin, or Member. Members view and verify; Admins issue tokens; Owners touch billing.",
+      },
+    ],
+  },
+  {
+    title: "For the SRE",
+    items: [
+      {
+        title: "Open source edge",
+        body: "Caddy binary + a NestJS control plane on Postgres. Inspect every line. Run your own instance if compliance says so.",
+      },
+      {
+        title: "Public status page",
+        body: "status.hee.la — runs on Upptime (GitHub Actions). No status-page SaaS markup. Uptime history committed to a public repo.",
+      },
+      {
+        title: "Prometheus metrics",
+        body: "Per-project cert issuance latency, 5xx rate, request volume. Scrape or pull via Grafana Cloud. (Coming Phase 2.)",
+      },
+    ],
+  },
+];
+---
+
+<BaseLayout title="Features — Hee" description="Everything Hee does for your custom-domain setup: automatic TLS, multi-tenant API, DNS verification, open-source edge.">
+  <main class="mx-auto max-w-6xl px-6 pt-16 pb-24 md:pt-24">
+    <div class="mx-auto max-w-3xl text-center">
+      <h1 class="text-4xl font-semibold tracking-tight md:text-5xl">Features</h1>
+      <p class="mt-4 text-lg text-ink-700">
+        Shared edge for custom domains, with the features you'd build yourself if you had a month.
+      </p>
+    </div>
+
+    <div class="mt-20 space-y-20">
+      {groups.map((g) => (
+        <section>
+          <h2 class="text-2xl font-semibold tracking-tight">{g.title}</h2>
+          <div class="mt-8 grid gap-5 md:grid-cols-2">
+            {g.items.map((f) => (
+              <div class="card">
+                <h3 class="font-semibold">{f.title}</h3>
+                <p class="mt-2 text-sm text-ink-700">{f.body}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
+  </main>
+</BaseLayout>

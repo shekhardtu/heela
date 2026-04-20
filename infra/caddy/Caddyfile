@@ -35,9 +35,24 @@
 # ── Hee platform hostnames ───────────────────────────────────────────────────
 
 hee.la, www.hee.la {
-  # Marketing site — placeholder until the Astro build lands.
-  header Content-Type "text/html; charset=utf-8"
-  respond `<!doctype html><html><head><title>Hee — coming soon</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:system-ui,sans-serif;max-width:42rem;margin:10vh auto;padding:2rem;color:#0f172a}</style></head><body><h1>Hee</h1><p>Custom domains for SaaS. Open-source edge, Let's Encrypt, zero Cloudflare Enterprise needed. Soft launch soon.</p><p><a href="mailto:ops@hee.la">ops@hee.la</a></p></body></html>` 200
+  # Marketing site — static Astro build, rsync'd from marketing/dist via deploy.sh.
+  encode zstd gzip
+  root * /opt/hee/marketing/dist
+  # Serve /foo/index.html for /foo directly (no 308 round-trip), fall through to =404.
+  try_files {path} {path}/index.html =404
+  file_server
+  # Long cache on hashed assets; short cache on HTML so updates surface quickly.
+  @assets path /_astro/* /favicon.svg /robots.txt
+  header @assets Cache-Control "public, max-age=31536000, immutable"
+  @html path_regexp ^/($|.+/$|.+\.html$)
+  header @html Cache-Control "public, max-age=60, must-revalidate"
+  handle_errors {
+    @404 expression `{err.status_code} == 404`
+    handle @404 {
+      rewrite * /404.html
+      file_server
+    }
+  }
 }
 
 app.hee.la {
