@@ -8,7 +8,7 @@ sidebar:
 `@hee/sdk` is a thin, zero-dependency TypeScript client for the Hee control plane. Works in Node.js 18+, Deno, Bun, and Cloudflare Workers.
 
 :::note
-The package will be published to npm alongside Phase 2 public release. Until then, vendor it from the [edge-infra repo](https://github.com/shekhardtu/edge-infra/tree/main/packages/sdk) or install from a git URL.
+The package will be published to npm alongside Phase 2 public release. Until then, vendor it from the [edge-infra repo](https://github.com/shekhardtu/heela/tree/main/packages/sdk) or install from a git URL.
 :::
 
 ## Install
@@ -143,4 +143,4 @@ const hee = new HeeClient({
 
 ## Source
 
-[github.com/shekhardtu/edge-infra/tree/main/packages/sdk](https://github.com/shekhardtu/edge-infra/tree/main/packages/sdk)
+[github.com/shekhardtu/heela/tree/main/packages/sdk](https://github.com/shekhardtu/heela/tree/main/packages/sdk)

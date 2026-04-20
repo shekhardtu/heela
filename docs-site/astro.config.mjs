@@ -15,11 +15,11 @@ export default defineConfig({
         {
           icon: "github",
           label: "GitHub",
-          href: "https://github.com/shekhardtu/hee-status",
+          href: "https://github.com/shekhardtu/heela",
         },
       ],
       editLink: {
-        baseUrl: "https://github.com/shekhardtu/hee-docs/edit/main/",
+        baseUrl: "https://github.com/shekhardtu/heela/edit/main/docs-site/",
       },
       lastUpdated: true,
       customCss: ["./src/styles/custom.css"],

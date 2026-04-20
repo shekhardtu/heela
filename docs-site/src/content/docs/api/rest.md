@@ -91,7 +91,7 @@ These endpoints back the web portal. You probably don't need to call them — th
 
 ### `POST /v1/auth/sign-out`
 
-See [the edge-infra repo](https://github.com/shekhardtu/edge-infra/tree/main/control-plane/src/modules/auth-user) for request/response shapes.
+See [the edge-infra repo](https://github.com/shekhardtu/heela/tree/main/control-plane/src/modules/auth-user) for request/response shapes.
 
 ## Portal (session-scoped)
 

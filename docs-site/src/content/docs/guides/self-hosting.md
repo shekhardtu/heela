@@ -30,9 +30,9 @@ Customer CNAME ─▶ edge.yourcompany.com ─▶ [Caddy on :443]
 ## Install
 
 ```bash
-# 1. Clone the edge-infra repo
-git clone https://github.com/shekhardtu/edge-infra.git
-cd edge-infra
+# 1. Clone the Hee source repo
+git clone https://github.com/shekhardtu/heela.git
+cd heela
 
 # 2. Provision your VM (or use your own)
 #    Install Docker + Caddy on a fresh Debian/Ubuntu box.
@@ -119,4 +119,4 @@ Caddy's redis storage plugin: [github.com/gamalan/caddy-tlsredis](https://github
 
 ## Support
 
-Self-hosting is unsupported by the hosted Hee team, but the [edge-infra repo](https://github.com/shekhardtu/edge-infra) accepts issues and PRs. For commercial support on self-hosted deployments, email [enterprise@hee.la](mailto:enterprise@hee.la).
+Self-hosting is unsupported by the hosted Hee team, but the [edge-infra repo](https://github.com/shekhardtu/heela) accepts issues and PRs. For commercial support on self-hosted deployments, email [enterprise@hee.la](mailto:enterprise@hee.la).
