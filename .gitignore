@@ -1,0 +1,32 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+
+# editors
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# secrets / local state
+*.pem
+*.key
+!*.pub.key
+.hcloud-token
+secrets/
+
+# logs
+*.log
+logs/
+
+# build artifacts
+coverage/
+.turbo/
+.next/
+.astro/
+
+# caddy runtime
+caddy-data/
+caddy-config/

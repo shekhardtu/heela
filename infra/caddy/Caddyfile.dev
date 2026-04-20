@@ -1,0 +1,57 @@
+# Local-dev Caddyfile. Simulates the production edge, but uses Caddy's
+# internal CA for TLS (no ACME calls to Let's Encrypt).
+#
+# Tests the request flow:
+#   curl -H "Host: engineering.loopai.com" https://localhost → Caddy →
+#     (ask /_check-hostname to mock control plane) →
+#     reverse_proxy to mock upstream
+#
+# Start: docker compose -f docker-compose.dev.yml up
+# Test: scripts/test-local.sh
+
+{
+  # Dev-only — skip real ACME, use Caddy's internal CA so TLS works for any Host.
+  auto_https off
+  local_certs
+
+  on_demand_tls {
+    ask http://control-plane:5301/_check-hostname
+  }
+
+  # Expose metrics on a separate admin listener (useful in prod too).
+  admin :2019
+}
+
+# HTTPS with on-demand TLS for any Host. Matches the production pattern.
+:443 {
+  tls {
+    on_demand
+    issuer internal
+  }
+
+  # Health check — bypasses hostname lookup, used by LB probes.
+  @healthz path /_healthz
+  handle @healthz {
+    respond "ok" 200
+  }
+
+  # All other traffic: look up workspace and reverse-proxy to the mock upstream.
+  # The real production Caddyfile will route per-project; in dev we only have one.
+  reverse_proxy http://upstream:5400 {
+    header_up Host {upstream_hostport}
+    header_up X-Forwarded-Host {host}
+    header_up X-Real-IP {remote_host}
+  }
+}
+
+# HTTP → HTTPS redirect + ACME HTTP-01 challenge path (in prod).
+# `handle` blocks are mutually exclusive — ensures /_healthz bypasses the redir.
+:80 {
+  @healthz path /_healthz
+  handle @healthz {
+    respond "ok" 200
+  }
+  handle {
+    redir https://{host}{uri} permanent
+  }
+}

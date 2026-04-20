@@ -1,0 +1,109 @@
+# Production Caddyfile for edge-1 (Hetzner fsn1, 49.13.214.28).
+#
+# This Caddy instance is the front door for both:
+#   (a) The Hee platform itself — hee.la, app.hee.la, api.hee.la, edge.hee.la
+#   (b) Customer-owned custom domains routed here via CNAME → edge.hee.la
+#
+# DNS:
+#   hee.la        → 49.13.214.28 (A)
+#   app.hee.la    → 49.13.214.28 (A)   — Portal (placeholder until Phase 2)
+#   api.hee.la    → 49.13.214.28 (A)   — Control plane (NestJS on :5301)
+#   edge.hee.la   → 49.13.214.28 (A)   — What customers CNAME to
+#   *.colbin.com / *.loopai.com / etc. → CNAME edge.hee.la
+#
+# Customer domains use on-demand TLS; Hee platform hostnames use normal ACME
+# (explicit site blocks, so they issue at startup / on first request).
+
+{
+  email ops@hee.la
+
+  on_demand_tls {
+    # 2xx → issue cert, 4xx/5xx → deny. Control plane runs on localhost:5301;
+    # using loopback avoids a circular dependency through Caddy's own :443.
+    ask http://localhost:5301/_check-hostname
+  }
+
+  admin localhost:2019
+
+  log {
+    output stdout
+    format json
+    level INFO
+  }
+}
+
+# ── Hee platform hostnames ───────────────────────────────────────────────────
+
+hee.la, www.hee.la {
+  # Marketing site — placeholder until the Astro build lands.
+  header Content-Type "text/html; charset=utf-8"
+  respond `<!doctype html><html><head><title>Hee — coming soon</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:system-ui,sans-serif;max-width:42rem;margin:10vh auto;padding:2rem;color:#0f172a}</style></head><body><h1>Hee</h1><p>Custom domains for SaaS. Open-source edge, Let's Encrypt, zero Cloudflare Enterprise needed. Soft launch soon.</p><p><a href="mailto:ops@hee.la">ops@hee.la</a></p></body></html>` 200
+}
+
+app.hee.la {
+  # Customer portal — placeholder until the Next.js build lands.
+  header Content-Type "text/html; charset=utf-8"
+  respond `<!doctype html><html><head><title>Hee Portal</title></head><body style="font-family:system-ui;padding:2rem"><h1>Portal</h1><p>Sign-in + dashboard coming soon.</p></body></html>` 200
+}
+
+api.hee.la {
+  # Control plane. Once the NestJS service is running on :5301, traffic flows.
+  # Until then, 503 so callers know it's not live yet.
+  reverse_proxy localhost:5301 {
+    # Fast fail so the placeholder below takes over if the service is down.
+    transport http {
+      dial_timeout 2s
+      response_header_timeout 5s
+    }
+  }
+  handle_errors {
+    respond "control plane not deployed yet" 503
+  }
+}
+
+edge.hee.la {
+  # The hostname customers CNAME to. Any direct hit (bots, health checks)
+  # gets a simple OK. The real work happens when their custom hostname lands
+  # on the on-demand :443 block below.
+  respond "hee edge alive" 200
+}
+
+# ── Customer custom domains (on-demand TLS) ──────────────────────────────────
+# Phase 1: hardcoded reverse_proxy to Colbin's Pages. Phase 2: replaced by
+# a per-hostname lookup against the control plane.
+
+:443 {
+  tls {
+    on_demand
+  }
+
+  @healthz path /_healthz
+  handle @healthz {
+    respond "ok" 200
+  }
+
+  handle {
+    reverse_proxy https://colbin.pages.dev {
+      header_up Host colbin.pages.dev
+      transport http {
+        keepalive 30s
+        keepalive_idle_conns 32
+      }
+    }
+    header X-Edge-Node "edge-1.fsn1"
+  }
+}
+
+# ── Catch-all HTTP ───────────────────────────────────────────────────────────
+# Redirect everything to HTTPS; expose /_healthz on :80 for LB probes and
+# ACME HTTP-01 challenges are auto-handled by Caddy.
+
+:80 {
+  @healthz path /_healthz
+  handle @healthz {
+    respond "ok" 200
+  }
+  handle {
+    redir https://{host}{uri} permanent
+  }
+}

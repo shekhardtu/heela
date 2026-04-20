@@ -1,0 +1,87 @@
+# Full local stack — Caddy + real NestJS control-plane + Postgres + mock upstream.
+# Used for integration testing the whole Phase 1 stack before deploying.
+#
+# Start:   docker compose -f docker-compose.full.yml up --build
+# Migrate: docker compose -f docker-compose.full.yml exec control-plane npm run db:migrate
+# Test:    bash scripts/test-full.sh
+
+services:
+  caddy:
+    image: caddy:2.8-alpine
+    container_name: edge-caddy-full
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "2019:2019"
+    volumes:
+      - ./infra/caddy/Caddyfile.dev:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    environment:
+      # Caddyfile.dev points to `control-plane:5301` for the ask hook — same
+      # network alias as the mock, so nothing to change.
+      TZ: UTC
+    depends_on:
+      control-plane:
+        condition: service_started
+      upstream:
+        condition: service_started
+    networks:
+      - edge
+
+  control-plane:
+    build:
+      context: ./control-plane
+      dockerfile: Dockerfile
+    container_name: edge-control-plane-full
+    restart: unless-stopped
+    ports:
+      - "5301:5301"
+    environment:
+      NODE_ENV: development
+      PORT: "5301"
+      DATABASE_URL: postgres://hee:hee@postgres:5432/hee
+      ADMIN_BOOTSTRAP_TOKEN: dev-admin-token-change-in-prod
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - edge
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: edge-postgres-full
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: hee
+      POSTGRES_PASSWORD: hee
+      POSTGRES_DB: hee
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hee -d hee"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    networks:
+      - edge
+
+  upstream:
+    image: hashicorp/http-echo:latest
+    container_name: edge-upstream-full
+    restart: unless-stopped
+    command: ['-listen=:5400', '-text=upstream reached via full stack']
+    networks:
+      - edge
+
+volumes:
+  caddy-data:
+  caddy-config:
+  postgres-data:
+
+networks:
+  edge:
+    driver: bridge

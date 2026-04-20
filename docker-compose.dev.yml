@@ -1,0 +1,70 @@
+# Local integration test stack — mirrors what runs on the Hetzner edge.
+#
+#   ┌─────────────┐       ┌───────────────┐       ┌──────────┐
+#   │  curl (you) │──────▶│  Caddy :443   │──────▶│ upstream │
+#   │             │       │  on_demand_tls│       │   :5400  │
+#   └─────────────┘       └──────┬────────┘       └──────────┘
+#                                │ ask /_check-hostname
+#                                ▼
+#                         ┌───────────────┐
+#                         │ control-plane │
+#                         │   mock :5301  │
+#                         └───────────────┘
+#
+# Start:  docker compose -f docker-compose.dev.yml up --build
+# Stop:   docker compose -f docker-compose.dev.yml down
+# Test:   bash scripts/test-local.sh
+
+services:
+  caddy:
+    image: caddy:2.8-alpine
+    container_name: edge-caddy-dev
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "2019:2019"   # admin API / metrics
+    volumes:
+      - ./infra/caddy/Caddyfile.dev:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - control-plane
+      - upstream
+    networks:
+      - edge
+
+  control-plane:
+    image: node:20-alpine
+    container_name: edge-control-plane-dev
+    restart: unless-stopped
+    working_dir: /app
+    volumes:
+      - ./control-plane/mock:/app:ro
+    command: ["node", "server.js"]
+    environment:
+      PORT: "5301"
+      ALLOWED_HOSTNAMES: "engineering.loopai.com,docs.acme.test,test.local"
+    ports:
+      - "5301:5301"  # exposed for host-side test scripts; can be removed in prod
+    networks:
+      - edge
+
+  upstream:
+    # Tiny HTTP echo that shows what the real backend would see.
+    # Reveals the Host, X-Forwarded-Host, and request headers Caddy passed
+    # through, which is what we actually care about in integration tests.
+    image: hashicorp/http-echo:latest
+    container_name: edge-upstream-dev
+    restart: unless-stopped
+    command: ['-listen=:5400', '-text=upstream reached — request flowed through Caddy']
+    networks:
+      - edge
+
+volumes:
+  caddy-data:
+  caddy-config:
+
+networks:
+  edge:
+    driver: bridge

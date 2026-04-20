@@ -1,0 +1,60 @@
+# Runs on edge-1 directly (no Caddy container — Caddy is systemd-managed).
+# Spins up the control-plane NestJS app + a local Postgres.
+#
+# Deploy:
+#   rsync -avz control-plane/ root@edge-1:/opt/hee/control-plane/
+#   scp infra/server/docker-compose.server.yml root@edge-1:/opt/hee/docker-compose.yml
+#   ssh root@edge-1 "cd /opt/hee && docker compose up -d --build"
+#
+# Caddy on the host already reverse_proxies api.hee.la → localhost:5301.
+
+services:
+  control-plane:
+    build:
+      context: ./control-plane
+      dockerfile: Dockerfile
+    container_name: hee-control-plane
+    restart: unless-stopped
+    ports:
+      # Bind to 127.0.0.1 only — Caddy on the host talks to it over loopback.
+      # Public traffic never hits this port directly.
+      - "127.0.0.1:5301:5301"
+    env_file:
+      - ./control-plane.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - hee
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: hee-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: hee
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      POSTGRES_DB: hee
+    secrets:
+      - postgres_password
+    # Not exposed to the public — only control-plane talks to it on the hee network.
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hee -d hee"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+    networks:
+      - hee
+
+volumes:
+  postgres-data:
+
+secrets:
+  postgres_password:
+    file: ./secrets/postgres_password.txt
+
+networks:
+  hee:
+    driver: bridge
