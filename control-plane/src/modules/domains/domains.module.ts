@@ -5,11 +5,12 @@ import { Project } from "../../entities/project.entity";
 import { AuthModule } from "../auth/auth.module";
 import { DomainsController } from "./domains.controller";
 import { DomainsService } from "./domains.service";
+import { DomainVerifyService } from "./verify.service";
 
 @Module({
   imports: [TypeOrmModule.forFeature([Domain, Project]), AuthModule],
   controllers: [DomainsController],
-  providers: [DomainsService],
+  providers: [DomainsService, DomainVerifyService],
   exports: [DomainsService],
 })
 export class DomainsModule {}
