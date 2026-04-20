@@ -12,6 +12,7 @@
     "test": "jest",
     "typecheck": "tsc --noEmit",
     "db:migrate": "typeorm-ts-node-commonjs migration:run -d src/data-source.ts",
+    "db:migrate:prod": "typeorm migration:run -d dist/data-source.js",
     "db:generate": "typeorm-ts-node-commonjs migration:generate -d src/data-source.ts"
   },
   "dependencies": {

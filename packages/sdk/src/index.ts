@@ -1,11 +1,11 @@
 /**
- * @hee/sdk — thin, zero-dependency client for the Hee edge control plane.
+ * @heela/sdk — thin, zero-dependency client for the Hee edge control plane.
  *
  * Each project (Colbin, YoFix, Kundali, ...) calls this from its own backend
  * to register / remove / list the customer-owned hostnames routed through the
  * Hee edge. One service token per project, scoped at the control plane.
  *
- *   import { HeeClient } from "@hee/sdk";
+ *   import { HeeClient } from "@heela/sdk";
  *   const hee = new HeeClient({ token: process.env.HEE_API_TOKEN! });
  *   await hee.domains.register({ hostname: "engineering.loopai.com", metadata: { workspaceSlug: "engineering" } });
  */

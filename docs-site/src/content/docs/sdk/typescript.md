@@ -5,7 +5,7 @@ sidebar:
   order: 1
 ---
 
-`@hee/sdk` is a thin, zero-dependency TypeScript client for the Hee control plane. Works in Node.js 18+, Deno, Bun, and Cloudflare Workers.
+`@heela/sdk` is a thin, zero-dependency TypeScript client for the Hee control plane. Works in Node.js 18+, Deno, Bun, and Cloudflare Workers.
 
 :::note
 The package will be published to npm alongside Phase 2 public release. Until then, vendor it from the [edge-infra repo](https://github.com/shekhardtu/heela/tree/main/packages/sdk) or install from a git URL.
@@ -14,17 +14,17 @@ The package will be published to npm alongside Phase 2 public release. Until the
 ## Install
 
 ```bash
-npm install @hee/sdk
+npm install @heela/sdk
 # or
-yarn add @hee/sdk
+yarn add @heela/sdk
 # or
-bun add @hee/sdk
+bun add @heela/sdk
 ```
 
 ## Configure
 
 ```typescript
-import { HeeClient } from "@hee/sdk";
+import { HeeClient } from "@heela/sdk";
 
 const hee = new HeeClient({
   token: process.env.HEE_API_TOKEN!,
@@ -81,7 +81,7 @@ await hee.domains.remove("docs.customer.com");
 All errors are instances of `HeeError`:
 
 ```typescript
-import { HeeError } from "@hee/sdk";
+import { HeeError } from "@heela/sdk";
 
 try {
   await hee.domains.register({ hostname: "docs.customer.com" });
@@ -133,7 +133,7 @@ async function registerWithRetry(input: { hostname: string }) {
 Pass your own `fetch` implementation for testing or non-standard runtimes:
 
 ```typescript
-import { HeeClient } from "@hee/sdk";
+import { HeeClient } from "@heela/sdk";
 
 const hee = new HeeClient({
   token: "hee_test_...",

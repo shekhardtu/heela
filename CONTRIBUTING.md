@@ -34,7 +34,7 @@ bash scripts/test-local.sh
 - `portal/` — Next.js 15 customer portal
 - `marketing/` — Astro marketing site at hee.la
 - `docs-site/` — Astro + Starlight docs at docs.hee.la
-- `packages/sdk/` — TypeScript SDK (`@hee/sdk`)
+- `packages/sdk/` — TypeScript SDK (`@heela/sdk`)
 - `scripts/` — dev/ops helpers
 
 ## What we're looking for

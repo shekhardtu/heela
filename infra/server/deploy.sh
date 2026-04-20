@@ -96,11 +96,26 @@ $SSH "caddy fmt --overwrite /etc/caddy/Caddyfile && systemctl reload caddy"
 # ── 5. Build + start ──────────────────────────────────────────────────────
 $SSH "cd $REMOTE_DIR && docker compose up -d --build"
 
-# ── 6. Apply migrations (run inside the running container) ────────────────
-$SSH "cd $REMOTE_DIR && docker compose exec -T control-plane npx typeorm-ts-node-commonjs migration:run -d src/data-source.ts || true"
-# First-boot sometimes misses typeorm-ts-node (dev dep not included). Fall
-# back to a raw psql migration apply via the Postgres container.
-$SSH "cd $REMOTE_DIR && docker compose exec -T postgres pg_isready -U hee -d hee >/dev/null 2>&1"
+# ── 6. Apply migrations (compiled JS — no ts-node required) ───────────────
+# First, seed TypeORM's `migrations` table so it knows existing schema is up
+# to date (we applied the original migrations via psql before wiring this up).
+# Subsequent deploys just run pending migrations normally.
+$SSH "cd $REMOTE_DIR && docker compose exec -T postgres psql -U hee -d hee <<'SQL'
+CREATE TABLE IF NOT EXISTS migrations (
+  id SERIAL PRIMARY KEY,
+  timestamp BIGINT NOT NULL,
+  name VARCHAR NOT NULL
+);
+INSERT INTO migrations (timestamp, name)
+SELECT v.timestamp, v.name FROM (VALUES
+  (1776720000000::bigint, 'Initial1776720000000'),
+  (1776730000000::bigint, 'AddAuth1776730000000'),
+  (1776740000000::bigint, 'AddInvitations1776740000000')
+) AS v(timestamp, name)
+WHERE NOT EXISTS (SELECT 1 FROM migrations m WHERE m.name = v.name);
+SQL"
+
+$SSH "cd $REMOTE_DIR && docker compose exec -T control-plane npm run db:migrate:prod"
 
 # ── 7. Smoke test ─────────────────────────────────────────────────────────
 sleep 5

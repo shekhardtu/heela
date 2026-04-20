@@ -32,7 +32,7 @@ In scope:
 - The control plane API (`api.hee.la`)
 - The customer portal (`app.hee.la`)
 - The edge proxy and Caddyfile config
-- The `@hee/sdk` package
+- The `@heela/sdk` package
 - Infrastructure-as-code in `infra/`
 
 Out of scope:

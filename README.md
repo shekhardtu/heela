@@ -43,7 +43,7 @@ edge-infra/
 ├── portal/                      # Next.js 15 portal
 ├── marketing/                   # Astro site at hee.la
 ├── docs-site/                   # Astro + Starlight at docs.hee.la
-├── packages/sdk/                # @hee/sdk (TypeScript)
+├── packages/sdk/                # @heela/sdk (TypeScript)
 └── scripts/                     # dev + ops helpers
 ```
 

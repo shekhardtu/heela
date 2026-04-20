@@ -1,7 +1,27 @@
 {
-  "name": "@hee/sdk",
-  "version": "0.1.0",
-  "description": "Client library for the Hee custom-domain edge. Each product backend imports this to register / remove / list customer domains.",
+  "name": "@heela/sdk",
+  "version": "0.1.1",
+  "description": "Client library for the Hee custom-domain edge. Each SaaS product backend imports this to register / remove / list customer domains.",
+  "license": "MIT",
+  "author": "Hee <ops@hee.la>",
+  "homepage": "https://hee.la",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/shekhardtu/heela.git",
+    "directory": "packages/sdk"
+  },
+  "bugs": {
+    "url": "https://github.com/shekhardtu/heela/issues"
+  },
+  "keywords": [
+    "hee",
+    "custom-domains",
+    "saas",
+    "multi-tenant",
+    "edge",
+    "tls",
+    "lets-encrypt"
+  ],
   "main": "dist/index.cjs",
   "module": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -13,11 +33,15 @@
       "require": "./dist/index.cjs"
     }
   },
-  "files": ["dist", "README.md"],
+  "files": ["dist", "README.md", "LICENSE"],
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "build": "tsup src/index.ts --format cjs,esm --dts --clean",
     "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
   },
   "devDependencies": {
     "tsup": "^8.3.0",

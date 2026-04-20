@@ -37,7 +37,7 @@ export default async function TokensPage(props: PageProps) {
       <header className="mb-10">
         <h1 className="text-2xl font-semibold">API tokens</h1>
         <p className="mt-1 text-sm text-ink-500">
-          Use these in your backend with <code className="font-mono">@hee/sdk</code>{" "}
+          Use these in your backend with <code className="font-mono">@heela/sdk</code>{" "}
           to register and remove customer domains.
         </p>
       </header>
