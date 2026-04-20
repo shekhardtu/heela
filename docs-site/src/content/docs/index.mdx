@@ -1,0 +1,51 @@
+---
+title: Hee Docs
+description: Custom domains for SaaS — shared edge with automatic TLS, multi-tenant API, and open-source infrastructure.
+template: splash
+hero:
+  tagline: Custom domains for SaaS. One CNAME, automatic TLS, no Cloudflare Enterprise.
+  image:
+    file: ../../assets/logo.svg
+  actions:
+    - text: Quickstart
+      link: /quickstart/
+      icon: right-arrow
+      variant: primary
+    - text: Why Hee
+      link: /why-hee/
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid } from "@astrojs/starlight/components";
+
+## What is Hee?
+
+Hee is a shared edge service for SaaS products that need to offer **custom domains** to their customers. Your customer adds a single CNAME record; Hee handles TLS, routing, and the entire operational burden so your application stays focused on its actual job.
+
+<CardGrid>
+  <Card title="Quickstart" icon="rocket">
+    Register your first customer domain in 10 minutes. [Start here →](/quickstart/)
+  </Card>
+  <Card title="Concepts" icon="open-book">
+    How projects, domains, tokens, and tenancy fit together. [Read →](/concepts/edge/)
+  </Card>
+  <Card title="Guides" icon="document">
+    DNS setup, migration from Cloudflare for SaaS, troubleshooting. [Browse →](/guides/dns-setup/)
+  </Card>
+  <Card title="API reference" icon="seti:json">
+    Every endpoint, every response. [Explore →](/api/rest/)
+  </Card>
+</CardGrid>
+
+## Why another SaaS edge?
+
+The existing options are all wrong in different ways:
+
+- **Cloudflare for SaaS** — the features you need (Custom Origin SNI, predictable Worker routing) are Enterprise-only. Starts at five figures.
+- **Approximated** — closed source, per-domain pricing that scales poorly past ~200 customers.
+- **Rolling your own** — totally viable, but you'll spend a month on Caddy config, certificate rate limits, and a multi-tenant API.
+
+Hee is the shared middle ground: **open source** so you can self-host if you grow out of SaaS pricing, **priced for real SaaS teams** (€19/mo for 25 domains), and **built on standards** (Let's Encrypt, Caddy, Postgres — nothing exotic).
+
+Ready? Head to the [Quickstart](/quickstart/) →

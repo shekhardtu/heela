@@ -68,18 +68,20 @@ rsync -az --delete \
   -e "ssh -i $HOME/.ssh/colbin-edge -o StrictHostKeyChecking=accept-new" \
   "$REPO_ROOT/portal/" "root@$SERVER_IP:$REMOTE_DIR/portal/"
 
-# ── 4b. Build + rsync the marketing static site ──────────────────────────
-# Caddy serves /opt/hee/marketing/dist directly — no container involved.
-if [ -d "$REPO_ROOT/marketing" ]; then
-  echo "→ Building marketing site"
-  (cd "$REPO_ROOT/marketing" && \
-    if [ ! -d node_modules ]; then npm install --no-audit --no-fund; fi && \
-    npm run build)
-  $SSH "mkdir -p $REMOTE_DIR/marketing"
-  rsync -az --delete \
-    -e "ssh -i $HOME/.ssh/colbin-edge -o StrictHostKeyChecking=accept-new" \
-    "$REPO_ROOT/marketing/dist/" "root@$SERVER_IP:$REMOTE_DIR/marketing/dist/"
-fi
+# ── 4b. Build + rsync the static sites (marketing, docs) ──────────────────
+# Caddy serves /opt/hee/{marketing,docs-site}/dist directly — no container.
+for site in marketing docs-site; do
+  if [ -d "$REPO_ROOT/$site" ]; then
+    echo "→ Building $site"
+    (cd "$REPO_ROOT/$site" && \
+      if [ ! -d node_modules ]; then npm install --no-audit --no-fund; fi && \
+      npm run build)
+    $SSH "mkdir -p $REMOTE_DIR/$site"
+    rsync -az --delete \
+      -e "ssh -i $HOME/.ssh/colbin-edge -o StrictHostKeyChecking=accept-new" \
+      "$REPO_ROOT/$site/dist/" "root@$SERVER_IP:$REMOTE_DIR/$site/dist/"
+  fi
+done
 
 scp -i "$HOME/.ssh/colbin-edge" -o StrictHostKeyChecking=accept-new \
   "$SCRIPT_DIR/docker-compose.server.yml" \

@@ -89,6 +89,25 @@ edge.hee.la {
   respond "hee edge alive" 200
 }
 
+docs.hee.la {
+  # Docs site — Astro + Starlight static build, rsync'd from docs-site/dist.
+  encode zstd gzip
+  root * /opt/hee/docs-site/dist
+  try_files {path} {path}/index.html =404
+  file_server
+  @assets path /_astro/* /pagefind/* /favicon.svg
+  header @assets Cache-Control "public, max-age=31536000, immutable"
+  @html path_regexp ^/($|.+/$|.+\.html$)
+  header @html Cache-Control "public, max-age=60, must-revalidate"
+  handle_errors {
+    @404 expression `{err.status_code} == 404`
+    handle @404 {
+      rewrite * /404.html
+      file_server
+    }
+  }
+}
+
 # ── Customer custom domains (on-demand TLS) ──────────────────────────────────
 # Phase 1: hardcoded reverse_proxy to Colbin's Pages. Phase 2: replaced by
 # a per-hostname lookup against the control plane.
