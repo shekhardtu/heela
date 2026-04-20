@@ -16,6 +16,7 @@ dist/
 !*.pub.key
 .hcloud-token
 secrets/
+docs/HANDOFF.txt
 
 # logs
 *.log
