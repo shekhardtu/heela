@@ -54,6 +54,10 @@ PORTAL_BASE_URL=https://app.hee.la
 POSTMARK_SERVER_TOKEN=${POSTMARK_TOKEN}
 POSTMARK_FROM_ADDRESS=Hee <auth@hee.la>
 POSTMARK_STREAM_ID=outbound
+# Caddy admin is bound to the docker bridge gateway (see Caddyfile) so
+# the control-plane container can reach it. Matching Origin allow-list
+# lives in /etc/caddy/Caddyfile under the admin block.
+CADDY_ADMIN_URL=http://172.17.0.1:2019
 EOF
 chmod 600 $REMOTE_DIR/control-plane.env"
 
