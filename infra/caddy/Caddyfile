@@ -23,7 +23,11 @@
     ask http://localhost:5301/_check-hostname
   }
 
-  admin localhost:2019
+  # Admin API bound to a Unix socket — mounted into the control-plane
+  # container via docker-compose so the reconciler can reach it without
+  # TCP exposure, iptables rules, or Origin-header allow-lists. File
+  # permissions alone gate access.
+  admin unix//run/caddy/admin.sock
 
   log {
     output stdout

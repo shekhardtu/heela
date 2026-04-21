@@ -1,5 +1,6 @@
 import { Injectable, Logger, OnApplicationBootstrap } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { Cron, CronExpression } from "@nestjs/schedule";
 import { InjectRepository } from "@nestjs/typeorm";
 import { IsNull, Repository } from "typeorm";
 import { Domain } from "../../entities/domain.entity";
@@ -66,6 +67,27 @@ export class CaddyReconcilerService implements OnApplicationBootstrap {
       }
     } catch (err) {
       this.log.warn(`boot reconcile failed: ${(err as Error).message}`);
+    }
+  }
+
+  /**
+   * Drift-prevention safety net. On every tick we re-push the authoritative
+   * route list from Postgres into Caddy. Normally a no-op (Caddy's state
+   * already matches), but it catches:
+   *   - Caddy restarts that dropped admin-pushed routes (if `--resume` isn't
+   *     enabled for any reason)
+   *   - A missed reconcile due to a transient admin-API error
+   *   - Schema changes (rate_limit_rps, host_header_mode, upstream URL)
+   *     that a direct DB update made without triggering register/remove
+   *
+   * Cheap: one SELECT + one PUT per 10 minutes.
+   */
+  @Cron(CronExpression.EVERY_10_MINUTES, { name: "caddy-reconcile-drift-check" })
+  async driftCheck(): Promise<void> {
+    try {
+      await this.reconcile();
+    } catch (err) {
+      this.log.warn(`drift-check reconcile failed: ${(err as Error).message}`);
     }
   }
 

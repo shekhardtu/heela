@@ -1,55 +1,52 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { request as httpRequest } from "node:http";
 
 /**
  * Thin client for Caddy's Admin API (https://caddyserver.com/docs/api).
- * We only need PUT to replace a server's config atomically — Caddy handles
- * the hot-reload without dropping connections.
  *
- * Admin API is bound to localhost:2019 on every Hee edge node. On a single-
- * box deploy this client runs in-process next to Caddy; on multi-region
- * (Phase 3) the reconciler will fan out to every edge's admin endpoint.
+ * Transport: we prefer a Unix socket (CADDY_ADMIN_URL=unix:/run/caddy/admin.sock)
+ * so the control-plane container talks to Caddy through a mounted volume
+ * rather than TCP. This removes the TCP exposure, iptables rules, and
+ * Origin-header allow-list that were needed for the previous bridge-gateway
+ * approach — file permissions alone gate access.
+ *
+ * TCP (http://host:port) is still supported for local dev or alternate
+ * deploys where a socket isn't practical.
  */
 @Injectable()
 export class CaddyAdminClient {
   private readonly log = new Logger(CaddyAdminClient.name);
-  private readonly baseUrl: string;
-  private readonly fetchImpl: typeof globalThis.fetch;
+  private readonly adminUrl: string;
+  private readonly transport: "unix" | "tcp";
+  private readonly socketPath: string | null;
+  private readonly tcpBase: string | null;
 
   constructor(private readonly config: ConfigService) {
-    this.baseUrl = this.config.get<string>("CADDY_ADMIN_URL") ?? "http://localhost:2019";
-    this.fetchImpl = globalThis.fetch;
-  }
+    this.adminUrl = this.config.get<string>("CADDY_ADMIN_URL") ?? "http://localhost:2019";
 
-  /**
-   * Caddy's admin API requires an `Origin` header matching the configured
-   * allow-list when bound to a non-loopback address. Node's built-in fetch
-   * doesn't set one, so we always send our own — matching the baseUrl so
-   * the admin block's `origins` directive can be kept tight.
-   */
-  private adminHeaders(extra: Record<string, string> = {}): Record<string, string> {
-    return {
-      Origin: this.baseUrl,
-      ...extra,
-    };
-  }
-
-  /**
-   * Read config at a given path. Returns null if Caddy has nothing there
-   * (fresh server, path not populated yet). Throws on other errors.
-   */
-  async getConfig<T>(path: string): Promise<T | null> {
-    const url = `${this.baseUrl}${path}`;
-    const res = await this.fetchImpl(url, { headers: this.adminHeaders() });
-    if (res.status === 404) return null;
-    if (!res.ok) {
-      const text = await res.text().catch(() => "<no body>");
-      this.log.error(`caddy admin GET ${path} → ${res.status}: ${text}`);
-      throw new Error(`caddy admin GET rejected at ${path}: ${res.status}`);
+    if (this.adminUrl.startsWith("unix:")) {
+      this.transport = "unix";
+      // Accept both `unix:/path` and `unix:///path` forms.
+      this.socketPath = this.adminUrl.replace(/^unix:\/{0,2}/, "/");
+      this.tcpBase = null;
+    } else {
+      this.transport = "tcp";
+      this.socketPath = null;
+      this.tcpBase = this.adminUrl.replace(/\/$/, "");
     }
-    const text = await res.text();
-    if (!text || text === "null") return null;
-    return JSON.parse(text) as T;
+  }
+
+  /** Read config at a given path. Returns null if Caddy has nothing there. */
+  async getConfig<T>(path: string): Promise<T | null> {
+    const { status, body } = await this.send("GET", path);
+    if (status === 404) return null;
+    if (status < 200 || status >= 300) {
+      this.log.error(`caddy admin GET ${path} → ${status}: ${body}`);
+      throw new Error(`caddy admin GET rejected at ${path}: ${status}`);
+    }
+    if (!body || body === "null") return null;
+    return JSON.parse(body) as T;
   }
 
   /**
@@ -58,29 +55,89 @@ export class CaddyAdminClient {
    * we can surface it to the operator.
    */
   async putConfig(path: string, body: unknown): Promise<void> {
-    const url = `${this.baseUrl}${path}`;
-    const res = await this.fetchImpl(url, {
-      method: "POST",
-      headers: this.adminHeaders({ "Content-Type": "application/json" }),
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) {
-      const text = await res.text().catch(() => "<no body>");
-      this.log.error(`caddy admin ${path} → ${res.status}: ${text}`);
-      throw new Error(`caddy admin rejected config at ${path}: ${res.status}`);
+    const { status, body: responseBody } = await this.send(
+      "POST",
+      path,
+      JSON.stringify(body),
+    );
+    if (status < 200 || status >= 300) {
+      this.log.error(`caddy admin ${path} → ${status}: ${responseBody}`);
+      throw new Error(`caddy admin rejected config at ${path}: ${status}`);
     }
-    this.log.debug(`caddy admin ${path} → ${res.status}`);
+    this.log.debug(`caddy admin ${path} → ${status}`);
   }
 
   /** Health-check the admin API. Used by the reconciler to bail early. */
   async ping(): Promise<boolean> {
     try {
-      const res = await this.fetchImpl(`${this.baseUrl}/config/`, {
-        headers: this.adminHeaders(),
-      });
-      return res.ok;
+      const { status } = await this.send("GET", "/config/");
+      return status >= 200 && status < 300;
     } catch {
       return false;
     }
+  }
+
+  /**
+   * Transport-agnostic HTTP call. Unix-socket path uses node:http's
+   * `socketPath` option; TCP path goes through the global fetch.
+   */
+  private send(
+    method: string,
+    path: string,
+    body?: string,
+  ): Promise<{ status: number; body: string }> {
+    if (this.transport === "unix") {
+      return this.sendViaSocket(method, path, body);
+    }
+    return this.sendViaTcp(method, path, body);
+  }
+
+  private sendViaSocket(
+    method: string,
+    path: string,
+    body?: string,
+  ): Promise<{ status: number; body: string }> {
+    return new Promise((resolve, reject) => {
+      const req = httpRequest(
+        {
+          socketPath: this.socketPath!,
+          method,
+          path,
+          headers: {
+            Accept: "application/json",
+            ...(body ? { "Content-Type": "application/json" } : {}),
+          },
+        },
+        (res) => {
+          let data = "";
+          res.setEncoding("utf8");
+          res.on("data", (chunk) => (data += chunk));
+          res.on("end", () => resolve({ status: res.statusCode ?? 0, body: data }));
+        },
+      );
+      req.on("error", reject);
+      if (body) req.write(body);
+      req.end();
+    });
+  }
+
+  private async sendViaTcp(
+    method: string,
+    path: string,
+    body?: string,
+  ): Promise<{ status: number; body: string }> {
+    const res = await fetch(`${this.tcpBase}${path}`, {
+      method,
+      headers: {
+        Accept: "application/json",
+        // Caddy's admin API checks Origin when bound to non-loopback TCP.
+        // Matching our own baseUrl keeps the admin `origins` directive tight.
+        Origin: this.tcpBase!,
+        ...(body ? { "Content-Type": "application/json" } : {}),
+      },
+      body,
+    });
+    const text = await res.text().catch(() => "");
+    return { status: res.status, body: text };
   }
 }

@@ -54,12 +54,31 @@ PORTAL_BASE_URL=https://app.hee.la
 POSTMARK_SERVER_TOKEN=${POSTMARK_TOKEN}
 POSTMARK_FROM_ADDRESS=Hee <auth@hee.la>
 POSTMARK_STREAM_ID=outbound
-# Caddy admin is bound to the docker bridge gateway (see Caddyfile) so
-# the control-plane container can reach it. Matching Origin allow-list
-# lives in /etc/caddy/Caddyfile under the admin block.
-CADDY_ADMIN_URL=http://172.17.0.1:2019
+# Caddy admin API is a Unix socket at /run/caddy/admin.sock, mounted
+# into this container via docker-compose (see docker-compose.server.yml).
+# File permissions gate access; no TCP exposure, no firewall rules.
+CADDY_ADMIN_URL=unix:/run/caddy/admin.sock
 EOF
 chmod 600 $REMOTE_DIR/control-plane.env"
+
+# ── Caddy systemd override: RuntimeDirectory creates /run/caddy on boot
+# with caddy:caddy ownership + 0755 perms so the mounted-readonly volume
+# in the control-plane container can read the admin socket. Also adds
+# --resume so admin-pushed customer routes survive Caddy restarts (per
+# the warning at the top of the shipped caddy.service unit). Standard
+# systemd-drop-in pattern.
+$SSH "mkdir -p /etc/systemd/system/caddy.service.d && cat > /etc/systemd/system/caddy.service.d/override.conf <<'EOF'
+[Service]
+# Create /run/caddy with caddy:caddy ownership on every boot.
+RuntimeDirectory=caddy
+RuntimeDirectoryMode=0755
+# Drop the Caddyfile-only ExecStart and re-add with --resume, so admin
+# API state (customer-domain routes pushed by the Hee control plane)
+# survives process restarts instead of being clobbered by Caddyfile reload.
+ExecStart=
+ExecStart=/usr/bin/caddy run --environ --config /etc/caddy/Caddyfile --resume
+EOF
+systemctl daemon-reload && systemctl restart caddy"
 
 # ── 4. Rsync source (needs the full control-plane/ + portal/ trees) ──────
 rsync -az --delete \

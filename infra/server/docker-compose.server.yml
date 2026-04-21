@@ -21,6 +21,12 @@ services:
       - "127.0.0.1:5301:5301"
     env_file:
       - ./control-plane.env
+    volumes:
+      # Caddy's admin socket is exposed via /run/caddy on the host (created
+      # by Caddy's systemd RuntimeDirectory). Mounting it into the container
+      # lets the reconciler talk to Caddy over a Unix socket — no TCP, no
+      # iptables, no origin headers. Standard Caddy admin-over-socket.
+      - /run/caddy:/run/caddy:ro
     depends_on:
       postgres:
         condition: service_healthy
