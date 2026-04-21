@@ -58,6 +58,47 @@ export class Domain {
   @Column({ type: "timestamptz", name: "removed_at", nullable: true })
   removedAt!: Date | null;
 
+  /**
+   * Diagnosis fields populated by DomainVerifyService on every probe tick.
+   * Surfaced via the API so SaaS callers can render "we saw X, expected Y"
+   * UX without building their own DNS probe. Value semantics:
+   *   - `lastProbeAt`: timestamp of most recent probe attempt (success or fail)
+   *   - `lastObservedCname`: first CNAME record returned by DNS, or null if
+   *      the query errored / returned no CNAME (domain A-recorded, NXDOMAIN, etc.)
+   *   - `lastProbeError`: short, human-readable reason when probe failed
+   *      (e.g. "NXDOMAIN", "wrong target: points at foo.example.com")
+   */
+  @Column({ type: "timestamptz", name: "last_probe_at", nullable: true })
+  lastProbeAt!: Date | null;
+
+  @Column({ type: "varchar", length: 255, name: "last_observed_cname", nullable: true })
+  lastObservedCname!: string | null;
+
+  @Column({ type: "varchar", length: 500, name: "last_probe_error", nullable: true })
+  lastProbeError!: string | null;
+
+  /**
+   * One-time TXT token the customer must publish at
+   * `_hee-verify.<hostname>` when the owning project has
+   * `requireTxtVerification === true`. Cleared once verification completes.
+   */
+  @Column({ type: "varchar", length: 64, name: "txt_challenge", nullable: true })
+  txtChallenge!: string | null;
+
+  /**
+   * Cert lifecycle fields populated by the renewal watcher. Surfaced on
+   * domain API responses so SaaS operators can show expiry to customers
+   * and webhook on `cert.renewal_failed` before the cert goes invalid.
+   */
+  @Column({ type: "timestamptz", name: "cert_issued_at", nullable: true })
+  certIssuedAt!: Date | null;
+
+  @Column({ type: "timestamptz", name: "cert_expires_at", nullable: true })
+  certExpiresAt!: Date | null;
+
+  @Column({ type: "timestamptz", name: "cert_last_checked_at", nullable: true })
+  certLastCheckedAt!: Date | null;
+
   @CreateDateColumn({ type: "timestamptz" })
   createdAt!: Date;
 

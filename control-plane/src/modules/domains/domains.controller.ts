@@ -11,7 +11,12 @@ import {
 } from "@nestjs/common";
 import type { FastifyRequest } from "fastify";
 import { ApiTokenGuard } from "../auth/api-token.guard";
-import { DomainResponse, RegisterDomainDto } from "./domain.dto";
+import {
+  BulkRegisterDomainDto,
+  BulkRegisterResult,
+  DomainResponse,
+  RegisterDomainDto,
+} from "./domain.dto";
 import { DomainsService } from "./domains.service";
 
 /**
@@ -32,6 +37,18 @@ export class DomainsController {
     return this.service.register(req.auth!.projectId, dto);
   }
 
+  /**
+   * Bulk register — POST /v1/edge/domains/bulk with `{ domains: [...] }`.
+   * Each row is processed independently; one bad row doesn't fail the rest.
+   */
+  @Post("bulk")
+  async registerBulk(
+    @Body() dto: BulkRegisterDomainDto,
+    @Req() req: FastifyRequest,
+  ): Promise<BulkRegisterResult[]> {
+    return this.service.registerBulk(req.auth!.projectId, dto);
+  }
+
   @Get()
   async list(@Req() req: FastifyRequest): Promise<DomainResponse[]> {
     return this.service.list(req.auth!.projectId);
@@ -44,5 +61,19 @@ export class DomainsController {
     @Req() req: FastifyRequest,
   ): Promise<void> {
     await this.service.remove(req.auth!.projectId, hostname);
+  }
+
+  /**
+   * Force a DNS probe for this hostname and return the freshly-updated
+   * record (with diagnosis populated). Lets SaaS callers wire a "Re-verify"
+   * button without waiting for the 5-min cron tick.
+   */
+  @Post(":hostname/diagnose")
+  @HttpCode(200)
+  async diagnose(
+    @Param("hostname") hostname: string,
+    @Req() req: FastifyRequest,
+  ): Promise<DomainResponse> {
+    return this.service.diagnose(req.auth!.projectId, hostname);
   }
 }

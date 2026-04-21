@@ -32,6 +32,51 @@ export class ErrorPageService {
     return this.fallback(hostname, status);
   }
 
+  /**
+   * Rendered by Caddy's fallback route when a hostname is registered but
+   * the customer hasn't finished DNS yet. If the owning project set a
+   * `pendingPageUrl`, we fetch + serve that; otherwise a generic "setting
+   * up" page with the expected CNAME hint.
+   */
+  async renderPendingFor(hostname: string): Promise<string> {
+    const hit = await this.domains.lookup(hostname);
+    const url = hit?.project.pendingPageUrl ?? null;
+    if (url) {
+      const html = await this.fetchCached(url);
+      if (html) return html;
+    }
+    return this.pendingFallback(hostname);
+  }
+
+  private pendingFallback(hostname: string): string {
+    const safeHost = escapeHtml(hostname || "this domain");
+    return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Setting up ${safeHost}</title>
+<style>
+  body{font-family:system-ui,-apple-system,sans-serif;background:#0f172a;color:#cbd5e1;margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:2rem}
+  .card{max-width:480px;background:#1e293b;border:1px solid #334155;border-radius:12px;padding:2rem;text-align:center}
+  h1{margin:0 0 .5rem 0;font-size:1.5rem;color:#f1f5f9}
+  p{margin:.5rem 0;font-size:.95rem;line-height:1.5}
+  .spinner{display:inline-block;width:1rem;height:1rem;border:2px solid #475569;border-top-color:#38bdf8;border-radius:50%;animation:spin 1s linear infinite;vertical-align:middle;margin-right:.5rem}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .hint{color:#64748b;font-size:.8rem;margin-top:1.5rem}
+  code{font-family:ui-monospace,SFMono-Regular,monospace;background:#0f172a;padding:.15rem .4rem;border-radius:4px;font-size:.85rem}
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1><span class="spinner"></span>Setting up this site</h1>
+    <p>We're waiting for DNS to point <code>${safeHost}</code> at our edge.</p>
+    <p class="hint">This usually takes a minute or two once the CNAME is live. If you own this domain, check your DNS settings.</p>
+  </div>
+</body>
+</html>`;
+  }
+
   private async fetchCached(url: string): Promise<string | null> {
     const cached = this.cache.get(url);
     const now = Date.now();

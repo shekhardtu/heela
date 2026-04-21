@@ -1,4 +1,17 @@
-import { IsBoolean, IsOptional, IsString, IsUrl, Matches, MaxLength } from "class-validator";
+import { IsBoolean, IsIn, IsOptional, IsString, IsUrl, Matches, MaxLength } from "class-validator";
+
+/**
+ * How the edge sets the `Host` header when proxying to the upstream.
+ *   preserve             — send the client-facing hostname (default; lets
+ *                          the SaaS upstream route per-tenant).
+ *   rewrite_to_upstream  — overwrite with the upstream's own hostname (useful
+ *                          when the upstream requires its hostname to match
+ *                          TLS cert and doesn't do per-hostname routing).
+ *   static               — set a literal value from `hostHeaderValue` (rare,
+ *                          for upstreams that pin to a specific virtual host).
+ */
+export const HOST_HEADER_MODES = ["preserve", "rewrite_to_upstream", "static"] as const;
+export type HostHeaderMode = (typeof HOST_HEADER_MODES)[number];
 
 export class CreateProjectDto {
   @IsString()
@@ -16,6 +29,15 @@ export class CreateProjectDto {
   @IsOptional()
   @IsString()
   upstreamHost?: string;
+
+  @IsOptional()
+  @IsIn(HOST_HEADER_MODES)
+  hostHeaderMode?: HostHeaderMode;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  hostHeaderValue?: string;
 }
 
 export class ProjectResponse {
@@ -24,6 +46,8 @@ export class ProjectResponse {
   slug!: string;
   upstreamUrl!: string;
   upstreamHost!: string | null;
+  hostHeaderMode!: HostHeaderMode;
+  hostHeaderValue!: string | null;
   enabled!: boolean;
   createdAt!: string;
 }

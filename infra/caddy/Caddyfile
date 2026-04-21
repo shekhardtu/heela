@@ -109,48 +109,20 @@ docs.hee.la {
 }
 
 # ── Customer custom domains (on-demand TLS) ──────────────────────────────────
-# Phase 1: hardcoded reverse_proxy to Colbin's Pages. Phase 2: replaced by
-# a per-hostname lookup against the control plane.
-
-:443 {
-  tls {
-    on_demand
-  }
-
-  @healthz path /_healthz
-  handle @healthz {
-    respond "ok" 200
-  }
-
-  handle {
-    reverse_proxy https://colbin.pages.dev {
-      header_up Host colbin.pages.dev
-      transport http {
-        keepalive 30s
-        keepalive_idle_conns 32
-      }
-    }
-    header X-Edge-Node "edge-1.fsn1"
-  }
-
-  # Tenant-custom error page: on 5xx, fetch rendered HTML from the control
-  # plane. It looks up the project's errorPageUrl, fetches + caches it, and
-  # returns the HTML. Falls back to a built-in page if unset.
-  handle_errors {
-    @5xx expression `{err.status_code} >= 500 && {err.status_code} < 600`
-    handle @5xx {
-      rewrite * /_error-page
-      reverse_proxy localhost:5301 {
-        header_up Host api.hee.la
-        header_up X-Hee-Original-Host {host}
-        header_up X-Hee-Original-Status {err.status_code}
-        transport http {
-          dial_timeout 2s
-        }
-      }
-    }
-  }
-}
+# No Caddyfile site block for customer traffic. The `:443` server named
+# `customers` is created + maintained entirely via the Caddy Admin API by
+# the control plane's CaddyReconcilerService. Every domain register/remove
+# (and every project upstream-URL change) PATCHes the full server config.
+#
+# What runs there at runtime (see control-plane/src/modules/caddy/caddy-config.builder.ts):
+#   - One route per registered hostname → reverse_proxy to the owning
+#     project's upstreamUrl, preserving the client Host header by default
+#     so the SaaS upstream can route per-tenant.
+#   - A catch-all fallback that rewrites unmatched hosts to /_error-page
+#     on the control plane (serves a branded "domain not claimed" page).
+#
+# The global on_demand_tls ask hook at the top of this file still applies,
+# so cert issuance gating remains unchanged.
 
 # ── Catch-all HTTP ───────────────────────────────────────────────────────────
 # Redirect everything to HTTPS; expose /_healthz on :80 for LB probes and

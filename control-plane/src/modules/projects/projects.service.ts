@@ -6,6 +6,7 @@ import { ProjectMember, type ProjectRole } from "../../entities/project-member.e
 import { Project } from "../../entities/project.entity";
 import { User } from "../../entities/user.entity";
 import { generateApiToken } from "../auth/token.util";
+import { CaddyReconcilerService } from "../caddy/caddy-reconciler.service";
 import {
   AddMemberDto,
   CreateProjectDto,
@@ -25,6 +26,7 @@ export class ProjectsService {
     private readonly users: Repository<User>,
     @InjectRepository(ProjectMember)
     private readonly members: Repository<ProjectMember>,
+    private readonly caddy: CaddyReconcilerService,
   ) {}
 
   async addMember(projectSlug: string, dto: AddMemberDto): Promise<{ userId: string; projectId: string; role: ProjectRole }> {
@@ -77,8 +79,13 @@ export class ProjectsService {
       slug: dto.slug,
       upstreamUrl: dto.upstreamUrl,
       upstreamHost: dto.upstreamHost ?? null,
+      hostHeaderMode: dto.hostHeaderMode ?? "preserve",
+      hostHeaderValue: dto.hostHeaderValue ?? null,
     });
     const saved = await this.projects.save(row);
+    // New project has no domains yet, so the reconcile is a no-op — but
+    // triggering it keeps the write-path uniform with updates that do matter.
+    this.caddy.reconcile().catch(() => undefined);
     return this.toResponse(saved);
   }
 
@@ -118,6 +125,8 @@ export class ProjectsService {
       slug: p.slug,
       upstreamUrl: p.upstreamUrl,
       upstreamHost: p.upstreamHost,
+      hostHeaderMode: p.hostHeaderMode ?? "preserve",
+      hostHeaderValue: p.hostHeaderValue ?? null,
       enabled: p.enabled,
       createdAt: p.createdAt.toISOString(),
     };

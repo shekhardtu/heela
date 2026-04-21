@@ -16,6 +16,7 @@ import { AuditModule } from "./modules/audit/audit.module";
 import { AuthUserModule } from "./modules/auth-user/auth-user.module";
 import { DomainsModule } from "./modules/domains/domains.module";
 import { EdgeModule } from "./modules/edge/edge.module";
+import { MetricsModule } from "./modules/metrics/metrics.module";
 import { PortalModule } from "./modules/portal/portal.module";
 import { ProjectsModule } from "./modules/projects/projects.module";
 
@@ -53,6 +54,7 @@ import { ProjectsModule } from "./modules/projects/projects.module";
     AuthUserModule,
     DomainsModule,
     EdgeModule,
+    MetricsModule,
     PortalModule,
     ProjectsModule,
   ],

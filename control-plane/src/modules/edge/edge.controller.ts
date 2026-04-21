@@ -102,4 +102,23 @@ export class EdgeController {
     res.header("Cache-Control", "no-store");
     res.send(html);
   }
+
+  /**
+   * Served by the edge while a hostname is registered but `verified=false`
+   * (customer hasn't finished DNS yet). Uses the project's configured
+   * `pendingPageUrl` when set, otherwise a branded fallback. Responds 202
+   * so CDNs and crawlers treat the response as transient rather than a
+   * cacheable 200.
+   */
+  @Get("_pending-page")
+  async pendingPage(
+    @Headers("x-hee-original-host") host: string | undefined,
+    @Res({ passthrough: false }) res: FastifyReply,
+  ): Promise<void> {
+    const html = await this.errorPages.renderPendingFor(host ?? "");
+    res.status(202);
+    res.header("Content-Type", "text/html; charset=utf-8");
+    res.header("Cache-Control", "no-store");
+    res.send(html);
+  }
 }
