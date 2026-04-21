@@ -61,25 +61,6 @@ CADDY_ADMIN_URL=unix:/run/caddy/admin.sock
 EOF
 chmod 600 $REMOTE_DIR/control-plane.env"
 
-# ── Caddy systemd override: RuntimeDirectory creates /run/caddy on boot
-# with caddy:caddy ownership + 0755 perms so the mounted-readonly volume
-# in the control-plane container can read the admin socket. Also adds
-# --resume so admin-pushed customer routes survive Caddy restarts (per
-# the warning at the top of the shipped caddy.service unit). Standard
-# systemd-drop-in pattern.
-$SSH "mkdir -p /etc/systemd/system/caddy.service.d && cat > /etc/systemd/system/caddy.service.d/override.conf <<'EOF'
-[Service]
-# Create /run/caddy with caddy:caddy ownership on every boot.
-RuntimeDirectory=caddy
-RuntimeDirectoryMode=0755
-# Drop the Caddyfile-only ExecStart and re-add with --resume, so admin
-# API state (customer-domain routes pushed by the Hee control plane)
-# survives process restarts instead of being clobbered by Caddyfile reload.
-ExecStart=
-ExecStart=/usr/bin/caddy run --environ --config /etc/caddy/Caddyfile --resume
-EOF
-systemctl daemon-reload && systemctl restart caddy"
-
 # ── 4. Rsync source (needs the full control-plane/ + portal/ trees) ──────
 rsync -az --delete \
   --exclude node_modules --exclude dist \
@@ -110,14 +91,80 @@ scp -i "$HOME/.ssh/colbin-edge" -o StrictHostKeyChecking=accept-new \
   "$SCRIPT_DIR/docker-compose.server.yml" \
   "root@$SERVER_IP:$REMOTE_DIR/docker-compose.yml"
 
-# ── 4c. Update Caddyfile on the host + reload ────────────────────────────
+# ── 4c. Update Caddyfile on the host ──────────────────────────────────────
 scp -i "$HOME/.ssh/colbin-edge" -o StrictHostKeyChecking=accept-new \
   "$REPO_ROOT/infra/caddy/Caddyfile" \
   "root@$SERVER_IP:/etc/caddy/Caddyfile"
-$SSH "caddy fmt --overwrite /etc/caddy/Caddyfile && systemctl reload caddy"
+$SSH "caddy fmt --overwrite /etc/caddy/Caddyfile"
 
-# ── 5. Build + start ──────────────────────────────────────────────────────
-$SSH "cd $REMOTE_DIR && docker compose up -d --build"
+# ── 4d. Caddy systemd override ─────────────────────────────────────────────
+#   1. RuntimeDirectory=caddy — systemd creates /run/caddy at caddy:caddy 0755 on boot.
+#   2. RuntimeDirectoryPreserve=yes — keeps /run/caddy across Caddy restarts so
+#      containers with a bind mount to it keep a stable inode.
+#   3. ExecStart --resume — admin-pushed customer routes survive process restarts.
+#   4. ExecReload --address — distro default assumes TCP :2019; we're on a Unix
+#      socket so reload must know where to POST.
+$SSH "mkdir -p /etc/systemd/system/caddy.service.d && cat > /etc/systemd/system/caddy.service.d/override.conf <<'EOF'
+[Service]
+RuntimeDirectory=caddy
+RuntimeDirectoryMode=0755
+RuntimeDirectoryPreserve=yes
+ExecStart=
+ExecStart=/usr/bin/caddy run --environ --config /etc/caddy/Caddyfile --resume
+ExecReload=
+ExecReload=/usr/bin/caddy reload --config /etc/caddy/Caddyfile --address unix//run/caddy/admin.sock --force
+EOF
+systemctl daemon-reload"
+
+# Retire the previous socket-perms fixup units if present (superseded by
+# running the control-plane container as the caddy user's UID/GID).
+$SSH "systemctl disable --now caddy-admin-sock-perms.path caddy-admin-sock-perms.service 2>/dev/null || true
+rm -f /etc/systemd/system/caddy-admin-sock-perms.path /etc/systemd/system/caddy-admin-sock-perms.service
+systemctl daemon-reload"
+
+# Discover caddy's UID/GID on the host so the control-plane container can
+# be run with a matching identity — that way Caddy's default 0200 admin
+# socket just works, no chmod dance, no path unit, no drift on rebind.
+CADDY_UID=$($SSH "id -u caddy")
+CADDY_GID=$($SSH "getent group caddy | cut -d: -f3")
+echo "→ caddy uid/gid on $SERVER: ${CADDY_UID}:${CADDY_GID}"
+
+# ── 4e. Invalidate stale Caddy autosave ───────────────────────────────────
+# If the Caddyfile's admin address disagrees with the autosaved config,
+# `--resume` silently keeps using the old admin endpoint and every reload
+# POSTs to a stale address. No-op when already in sync.
+$SSH "python3 - <<'PY' || true
+import json, pathlib, re, sys
+autosave = pathlib.Path('/var/lib/caddy/.config/caddy/autosave.json')
+caddyfile = pathlib.Path('/etc/caddy/Caddyfile').read_text()
+m = re.search(r'^\s*admin\s+(\S+)', caddyfile, re.M)
+declared = m.group(1) if m else None
+if not autosave.exists() or not declared:
+    sys.exit(0)
+try:
+    saved = json.loads(autosave.read_text()).get('admin', {}).get('listen')
+except Exception:
+    sys.exit(0)
+norm_declared = declared.split('|')[0]  # autosave stores path without mode suffix
+if saved and saved != norm_declared:
+    autosave.unlink()
+    print(f'cleared stale autosave (was admin={saved}, now {norm_declared})')
+PY"
+
+# ── 4f. Restart Caddy once ─────────────────────────────────────────────────
+# One restart picks up the new systemd override AND the new Caddyfile (via
+# the invalidated autosave). No subsequent reload is needed in this deploy.
+$SSH "systemctl restart caddy"
+
+# ── 5. Build + start containers ───────────────────────────────────────────
+# CADDY_UID/GID are interpolated into docker-compose.server.yml so the
+# control-plane container runs with an identity that can read Caddy's
+# admin socket (mode 0200, owned by caddy on the host).
+# --force-recreate control-plane so its bind mount to /run/caddy picks up
+# the current inode. Restart alone doesn't re-mount; without this, a fresh
+# socket inside a recreated /run/caddy would be invisible to the container.
+$SSH "cd $REMOTE_DIR && CADDY_UID=${CADDY_UID} CADDY_GID=${CADDY_GID} docker compose up -d --build"
+$SSH "cd $REMOTE_DIR && CADDY_UID=${CADDY_UID} CADDY_GID=${CADDY_GID} docker compose up -d --force-recreate --no-deps control-plane"
 
 # ── 6. Apply migrations (compiled JS — no ts-node required) ───────────────
 # First, seed TypeORM's `migrations` table so it knows existing schema is up

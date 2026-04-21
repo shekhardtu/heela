@@ -15,6 +15,10 @@ services:
       dockerfile: Dockerfile
     container_name: hee-control-plane
     restart: unless-stopped
+    # Run as the host's caddy user so Caddy's 0200 admin socket is directly
+    # accessible — avoids a chmod race on every admin re-bind. Defaults to
+    # the Dockerfile's hee user (uid 100) if CADDY_UID/GID aren't set.
+    user: "${CADDY_UID:-100}:${CADDY_GID:-101}"
     ports:
       # Bind to 127.0.0.1 only — Caddy on the host talks to it over loopback.
       # Public traffic never hits this port directly.

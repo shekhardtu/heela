@@ -25,8 +25,12 @@
 
   # Admin API bound to a Unix socket — mounted into the control-plane
   # container via docker-compose so the reconciler can reach it without
-  # TCP exposure, iptables rules, or Origin-header allow-lists. File
-  # permissions alone gate access.
+  # TCP exposure, iptables rules, or Origin-header allow-lists. Caddy
+  # creates the socket at mode 0200 (owner-only) and re-binds it on
+  # every config PUT, so we match UIDs on the client side instead of
+  # chmodding: the control-plane container runs as the host's caddy
+  # user (see docker-compose.server.yml and deploy.sh). Trust boundary
+  # is the bind mount + local root access to /run/caddy.
   admin unix//run/caddy/admin.sock
 
   log {
