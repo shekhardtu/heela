@@ -44,8 +44,10 @@ export type CaddyHandler =
       transport?: {
         protocol: "http";
         tls?: { server_name?: string };
-        keepalive?: string;
-        keepalive_idle_conns?: number;
+        keep_alive?: {
+          idle_timeout?: string;
+          max_idle_conns_per_host?: number;
+        };
       };
     }
   | { handler: "rewrite"; uri: string }
@@ -211,8 +213,10 @@ function buildHostnameRoute(
       // client hostname. This is what lets us preserve the original
       // Host while still terminating upstream TLS correctly.
       tls: upstream.scheme === "https" ? { server_name: upstream.host } : undefined,
-      keepalive: "30s",
-      keepalive_idle_conns: 32,
+      keep_alive: {
+        idle_timeout: "30s",
+        max_idle_conns_per_host: 32,
+      },
     },
   });
 
