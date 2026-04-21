@@ -119,6 +119,10 @@ export class EdgeController {
     res.status(202);
     res.header("Content-Type", "text/html; charset=utf-8");
     res.header("Cache-Control", "no-store");
+    // Marker the pending-page polls for — absence of this header on the
+    // same URL signals the real upstream has taken over, so the client
+    // reloads automatically without a meta-refresh race.
+    res.header("X-Hee-Pending", "1");
     res.send(html);
   }
 }

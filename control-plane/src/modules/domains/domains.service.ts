@@ -108,7 +108,24 @@ export class DomainsService {
     // reconcile catches up on next control-plane restart. We don't block
     // the API response on edge sync.
     this.caddy.reconcile().catch(() => undefined);
-    return this.toResponse(saved);
+    // Probe DNS immediately. Customers usually set the CNAME *before*
+    // claiming the domain in the SaaS UI, so in the common case this one
+    // lookup flips verified=true in under a second and avoids a 0-5 min
+    // wait for the next cron tick. probeOne persists the diagnosis and
+    // (if verified) fires the Caddy route promotion — so the first HTTPS
+    // request to the hostname goes straight to cert issuance instead of
+    // the pending-page.
+    let response: DomainResponse;
+    try {
+      const probed = await this.verifier.probeOne(saved);
+      probed.project = project;
+      response = this.toResponse(probed);
+    } catch {
+      // Probe errors (DNS timeouts, etc.) are non-fatal — the cron will
+      // retry. Caller still gets a successful register response.
+      response = this.toResponse(saved);
+    }
+    return response;
   }
 
   /**

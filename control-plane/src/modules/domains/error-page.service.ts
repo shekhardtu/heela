@@ -55,6 +55,10 @@ export class ErrorPageService {
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
+<!-- meta refresh is the belt. The fetch loop below is the suspenders
+     (works on browsers that ignore meta refresh mid-navigation, and
+     lets us bail out the moment the site is actually live). -->
+<meta http-equiv="refresh" content="8" />
 <title>Setting up ${safeHost}</title>
 <style>
   body{font-family:system-ui,-apple-system,sans-serif;background:#0f172a;color:#cbd5e1;margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:2rem}
@@ -71,8 +75,29 @@ export class ErrorPageService {
   <div class="card">
     <h1><span class="spinner"></span>Setting up this site</h1>
     <p>We're waiting for DNS to point <code>${safeHost}</code> at our edge.</p>
-    <p class="hint">This usually takes a minute or two once the CNAME is live. If you own this domain, check your DNS settings.</p>
+    <p class="hint">This usually takes under a minute once the CNAME is live. If you own this domain, check your DNS settings.</p>
   </div>
+  <script>
+    // Poll the same URL until the upstream stops serving the pending-page.
+    // HEAD is enough — we only care about the status + X-Hee-Pending header.
+    // 3s interval = faster than the 8s meta-refresh fallback, and one request
+    // per tick means no back-pressure on the edge.
+    (function () {
+      const url = location.href;
+      const tick = () =>
+        fetch(url, { method: 'HEAD', cache: 'no-store', redirect: 'manual' })
+          .then((r) => {
+            // Control-plane tags the pending-page with X-Hee-Pending. When
+            // the real upstream takes over, that header is absent and the
+            // status is 200/3xx — reload to render the real site.
+            if (!r.headers.get('X-Hee-Pending') && r.status < 400) {
+              location.reload();
+            }
+          })
+          .catch(() => undefined);
+      setInterval(tick, 3000);
+    })();
+  </script>
 </body>
 </html>`;
   }
