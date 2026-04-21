@@ -6,7 +6,11 @@ import { Domain } from "../../entities/domain.entity";
 import { Project } from "../../entities/project.entity";
 import { MetricsService } from "../metrics/metrics.service";
 import { CaddyAdminClient } from "./caddy-admin.client";
-import { buildServerConfig } from "./caddy-config.builder";
+import {
+  buildCustomerRoutes,
+  HEE_ROUTE_ID_PREFIX,
+  type CaddyRoute,
+} from "./caddy-config.builder";
 
 /**
  * Keeps Caddy's per-hostname route table in sync with the domains + projects
@@ -42,7 +46,11 @@ export class CaddyReconcilerService implements OnApplicationBootstrap {
     private readonly config: ConfigService,
     private readonly metrics: MetricsService,
   ) {
-    this.serverKey = this.config.get<string>("CADDY_SERVER_KEY") ?? "customers";
+    // srv0 is Caddy's default name for the :443 server declared by our
+    // Caddyfile (hee.la, app.hee.la, etc.). We splice customer routes in
+    // alongside those so we don't need to create a conflicting second
+    // server bound to :443.
+    this.serverKey = this.config.get<string>("CADDY_SERVER_KEY") ?? "srv0";
     this.edgeNodeId = this.config.get<string>("EDGE_NODE_ID") ?? undefined;
   }
 
@@ -98,15 +106,24 @@ export class CaddyReconcilerService implements OnApplicationBootstrap {
       }),
     ]);
 
-    const serverConfig = buildServerConfig({
+    const customerRoutes = buildCustomerRoutes({
       domains: allDomains,
       projects: allProjects,
       edgeNodeId: this.edgeNodeId,
     });
 
-    const path = `/config/apps/http/servers/${this.serverKey}`;
+    // Fetch srv0's current routes so we can preserve anything the Caddyfile
+    // owns (hee.la, app.hee.la, docs.hee.la, edge.hee.la, etc.) and replace
+    // only routes we've previously tagged with HEE_ROUTE_ID_PREFIX.
+    const routesPath = `/config/apps/http/servers/${this.serverKey}/routes`;
+    const existing = (await this.admin.getConfig<CaddyRoute[]>(routesPath)) ?? [];
+    const foreign = existing.filter((r) => !isOurRoute(r));
+    // Customer routes go FIRST so per-hostname matchers take precedence over
+    // any Caddyfile fallback (e.g. a catch-all on_demand_tls block).
+    const merged = [...customerRoutes, ...foreign];
+
     try {
-      await this.admin.putConfig(path, serverConfig);
+      await this.admin.putConfig(routesPath, merged);
       this.metrics.increment("hee_caddy_reconciles_total", { result: "success" });
     } catch (err) {
       this.metrics.increment("hee_caddy_reconciles_total", { result: "failure" });
@@ -114,7 +131,11 @@ export class CaddyReconcilerService implements OnApplicationBootstrap {
     }
 
     this.log.log(
-      `reconciled ${allDomains.length} hostname(s) across ${allProjects.filter((p) => p.enabled).length} project(s)`,
+      `reconciled ${customerRoutes.length} customer route(s); ${foreign.length} Caddyfile route(s) preserved`,
     );
   }
+}
+
+function isOurRoute(r: CaddyRoute & { "@id"?: string }): boolean {
+  return typeof r["@id"] === "string" && r["@id"].startsWith(HEE_ROUTE_ID_PREFIX);
 }

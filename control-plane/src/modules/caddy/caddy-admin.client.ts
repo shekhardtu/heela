@@ -35,6 +35,24 @@ export class CaddyAdminClient {
   }
 
   /**
+   * Read config at a given path. Returns null if Caddy has nothing there
+   * (fresh server, path not populated yet). Throws on other errors.
+   */
+  async getConfig<T>(path: string): Promise<T | null> {
+    const url = `${this.baseUrl}${path}`;
+    const res = await this.fetchImpl(url, { headers: this.adminHeaders() });
+    if (res.status === 404) return null;
+    if (!res.ok) {
+      const text = await res.text().catch(() => "<no body>");
+      this.log.error(`caddy admin GET ${path} → ${res.status}: ${text}`);
+      throw new Error(`caddy admin GET rejected at ${path}: ${res.status}`);
+    }
+    const text = await res.text();
+    if (!text || text === "null") return null;
+    return JSON.parse(text) as T;
+  }
+
+  /**
    * Replace the config at a given path atomically. Caddy validates + hot-
    * reloads in one step; failure returns 400 with the validation error so
    * we can surface it to the operator.

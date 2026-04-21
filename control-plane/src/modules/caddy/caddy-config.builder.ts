@@ -96,71 +96,44 @@ export interface BuildInput {
   domains: BuilderDomain[];
   /** Every project referenced by at least one domain. */
   projects: BuilderProject[];
-  /** Error-page endpoint the edge rewrites to on 5xx. Defaults to the local control plane. */
-  errorPagePath?: string;
   /** Short identifier for this edge node, added as X-Edge-Node response header. */
   edgeNodeId?: string;
 }
 
 /**
- * Build the `:443` server config for Caddy. The returned object is the
- * exact JSON shape `POST /config/apps/http/servers/<key>` expects.
+ * `@id` prefix tagged on every route we inject. The reconciler uses this
+ * prefix to identify its own routes during re-reconcile — any route whose
+ * @id starts with this string is ours to manage / replace / delete;
+ * anything else belongs to the Caddyfile and we leave it alone.
  */
-export function buildServerConfig(input: BuildInput): CaddyServerConfig {
+export const HEE_ROUTE_ID_PREFIX = "hee-customer-";
+
+/**
+ * Build the per-hostname route list Hee manages inside the shared `:443`
+ * server (Caddyfile-originated). Each route is tagged with an `@id` the
+ * reconciler can use to idempotently replace on every reconcile.
+ *
+ * Returns just the routes array — not a whole server config — so the
+ * reconciler can merge with Caddyfile-originated routes on srv0 rather
+ * than creating a second server that would collide on :443.
+ */
+export function buildCustomerRoutes(input: BuildInput): CaddyRoute[] {
   const projectsById = new Map(input.projects.map((p) => [p.projectId, p]));
-  const errorPagePath = input.errorPagePath ?? "/_error-page";
-
   const routes: CaddyRoute[] = [];
-
-  // Health probe is first — lets LBs and monitors hit `/_healthz` without
-  // tripping TLS handshake overhead for unclaimed hostnames.
-  routes.push({
-    match: [{ path: ["/_healthz"] }],
-    handle: [{ handler: "static_response", status_code: 200, body: "ok" }],
-    terminal: true,
-  });
 
   for (const d of input.domains) {
     const project = projectsById.get(d.projectId);
     if (!project || !project.enabled) continue;
-    routes.push(
-      d.verified
-        ? buildHostnameRoute(d, project, input.edgeNodeId)
-        : buildPendingRoute(d.hostname),
-    );
+    const base = d.verified
+      ? buildHostnameRoute(d, project, input.edgeNodeId)
+      : buildPendingRoute(d.hostname);
+    // Tag so the reconciler knows this route is ours to manage.
+    (base as CaddyRoute & { "@id": string })["@id"] =
+      `${HEE_ROUTE_ID_PREFIX}${d.hostname}`;
+    routes.push(base);
   }
 
-  // Fallback: hostname wasn't matched by any route above. Rewrite to the
-  // error-page handler so the control plane can serve a branded "domain
-  // not claimed" response. Caddy will populate the 404 status upstream;
-  // we set 404 here to keep behaviour consistent even if the handler 200s.
-  routes.push({
-    handle: [
-      { handler: "rewrite", uri: errorPagePath },
-      {
-        handler: "reverse_proxy",
-        upstreams: [{ dial: "localhost:5301" }],
-        headers: {
-          request: {
-            set: {
-              Host: ["api.hee.la"],
-              "X-Hee-Original-Host": ["{http.request.host}"],
-              "X-Hee-Original-Status": ["404"],
-            },
-          },
-        },
-      },
-    ],
-  });
-
-  return {
-    listen: [":443"],
-    routes,
-    // Stop Caddy from trying to issue certs for the placeholder :443 listen —
-    // real cert issuance is driven by on_demand_tls ask hook in the global
-    // config, and we don't want Caddy guessing at hostnames from this subtree.
-    automatic_https: { disable: true },
-  };
+  return routes;
 }
 
 function buildHostnameRoute(
