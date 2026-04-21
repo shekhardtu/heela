@@ -1,6 +1,6 @@
 {
   "name": "@heela/sdk",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Client library for the Hee custom-domain edge. Each SaaS product backend imports this to register / remove / list customer domains.",
   "license": "MIT",
   "author": "Hee <ops@hee.la>",
