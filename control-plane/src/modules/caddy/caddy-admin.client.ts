@@ -22,6 +22,19 @@ export class CaddyAdminClient {
   }
 
   /**
+   * Caddy's admin API requires an `Origin` header matching the configured
+   * allow-list when bound to a non-loopback address. Node's built-in fetch
+   * doesn't set one, so we always send our own — matching the baseUrl so
+   * the admin block's `origins` directive can be kept tight.
+   */
+  private adminHeaders(extra: Record<string, string> = {}): Record<string, string> {
+    return {
+      Origin: this.baseUrl,
+      ...extra,
+    };
+  }
+
+  /**
    * Replace the config at a given path atomically. Caddy validates + hot-
    * reloads in one step; failure returns 400 with the validation error so
    * we can surface it to the operator.
@@ -30,7 +43,7 @@ export class CaddyAdminClient {
     const url = `${this.baseUrl}${path}`;
     const res = await this.fetchImpl(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: this.adminHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify(body),
     });
     if (!res.ok) {
@@ -44,7 +57,9 @@ export class CaddyAdminClient {
   /** Health-check the admin API. Used by the reconciler to bail early. */
   async ping(): Promise<boolean> {
     try {
-      const res = await this.fetchImpl(`${this.baseUrl}/config/`);
+      const res = await this.fetchImpl(`${this.baseUrl}/config/`, {
+        headers: this.adminHeaders(),
+      });
       return res.ok;
     } catch {
       return false;
