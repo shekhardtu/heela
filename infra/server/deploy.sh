@@ -113,6 +113,9 @@ SELECT v.timestamp, v.name FROM (VALUES
   (1776740000000::bigint, 'AddInvitations1776740000000')
 ) AS v(timestamp, name)
 WHERE NOT EXISTS (SELECT 1 FROM migrations m WHERE m.name = v.name);
+
+-- New migrations (AddProjectErrorPage, AddAuditEvents) will be run fresh by
+-- db:migrate:prod — nothing to seed for them.
 SQL"
 
 $SSH "cd $REMOTE_DIR && docker compose exec -T control-plane npm run db:migrate:prod"

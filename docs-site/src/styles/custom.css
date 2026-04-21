@@ -14,3 +14,190 @@
   --sl-color-accent: #ea580c;
   --sl-color-accent-high: #9a3412;
 }
+
+/* ─────────────────────────────────────────────────────────────
+ * REST API reference — endpoint cards
+ * ───────────────────────────────────────────────────────────── */
+
+.api-intro {
+  margin-block: 1.5rem 2.5rem;
+}
+
+.api-intro :is(code, pre) {
+  font-size: 0.85em;
+}
+
+.endpoint {
+  border: 1px solid var(--sl-color-gray-5);
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem 1rem;
+  margin-block: 1.75rem;
+  background: var(--sl-color-bg-sidebar);
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.endpoint:hover {
+  border-color: var(--sl-color-accent);
+  box-shadow: 0 1px 0 0 var(--sl-color-gray-6);
+}
+
+/* Full-detail endpoint heading — a method pill followed by a monospace path */
+.endpoint > h3 {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.625rem;
+  margin-top: 0;
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--sl-color-gray-6);
+  font-family: var(--sl-font-system-mono);
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  scroll-margin-top: 5rem;
+}
+
+.endpoint > h3 .endpoint-path,
+.endpoint-compact .endpoint-head code,
+.endpoint-compact .endpoint-head .endpoint-path {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font-size: inherit;
+  color: var(--sl-color-white);
+  word-break: break-all;
+}
+
+/* Method pills — color-coded per HTTP verb, used inside headings where
+ * Starlight's Badge component isn't picked up by the TOC extractor. */
+.method {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.55rem;
+  border-radius: 0.375rem;
+  font-family: var(--sl-font-system-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  line-height: 1.4;
+  border: 1px solid transparent;
+}
+
+.method-get {
+  background: color-mix(in oklab, #2563eb 22%, transparent);
+  color: #93c5fd;
+  border-color: color-mix(in oklab, #2563eb 40%, transparent);
+}
+
+.method-post {
+  background: color-mix(in oklab, #16a34a 22%, transparent);
+  color: #86efac;
+  border-color: color-mix(in oklab, #16a34a 40%, transparent);
+}
+
+.method-put,
+.method-patch {
+  background: color-mix(in oklab, #d97706 22%, transparent);
+  color: #fcd34d;
+  border-color: color-mix(in oklab, #d97706 40%, transparent);
+}
+
+.method-delete {
+  background: color-mix(in oklab, #dc2626 22%, transparent);
+  color: #fca5a5;
+  border-color: color-mix(in oklab, #dc2626 40%, transparent);
+}
+
+:root[data-theme="light"] .method-get {
+  color: #1d4ed8;
+  background: color-mix(in oklab, #2563eb 14%, white);
+}
+
+:root[data-theme="light"] .method-post {
+  color: #15803d;
+  background: color-mix(in oklab, #16a34a 14%, white);
+}
+
+:root[data-theme="light"] .method-delete {
+  color: #b91c1c;
+  background: color-mix(in oklab, #dc2626 14%, white);
+}
+
+:root[data-theme="light"] .method-put,
+:root[data-theme="light"] .method-patch {
+  color: #b45309;
+  background: color-mix(in oklab, #d97706 14%, white);
+}
+
+/* Paragraphs immediately after the heading get a slightly muted tone */
+.endpoint > h3 + p {
+  color: var(--sl-color-gray-2);
+  margin-top: 0.75rem;
+}
+
+/* Tighter, list-style block for lightly-documented endpoints */
+.endpoint-compact {
+  padding: 0.75rem 1rem;
+  margin-block: 0.5rem;
+}
+
+.endpoint-compact .endpoint-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.625rem;
+  font-family: var(--sl-font-system-mono);
+  font-size: 0.9rem;
+  margin-bottom: 0.25rem;
+}
+
+.endpoint-compact .endpoint-head code {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  color: var(--sl-color-white);
+}
+
+/* Parameter / error tables inside an endpoint card */
+.endpoint table {
+  margin-block: 0.75rem 1rem;
+  font-size: 0.875rem;
+}
+
+.endpoint table th {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  color: var(--sl-color-gray-2);
+}
+
+.endpoint table code {
+  font-size: 0.85em;
+}
+
+/* Tighten the vertical rhythm inside the card */
+.endpoint > :is(p, ul, ol) {
+  margin-block: 0.5rem;
+}
+
+.endpoint strong {
+  display: inline-block;
+  margin-top: 0.5rem;
+  font-weight: 600;
+  color: var(--sl-color-white);
+}
+
+/* Response/status inline badges sit flush with the preceding label */
+.endpoint strong + :global(.sl-badge) {
+  margin-left: 0.375rem;
+  vertical-align: middle;
+}
+
+/* Code blocks within endpoints get a bit more breathing room */
+.endpoint :global(.expressive-code) {
+  margin-block: 0.5rem 0.75rem;
+}

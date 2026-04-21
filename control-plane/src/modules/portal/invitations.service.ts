@@ -14,6 +14,7 @@ import { ProjectInvitation } from "../../entities/project-invitation.entity";
 import { ProjectMember } from "../../entities/project-member.entity";
 import { Project } from "../../entities/project.entity";
 import { User } from "../../entities/user.entity";
+import { AuditService } from "../audit/audit.service";
 import { PostmarkService } from "../auth-user/postmark.service";
 import {
   AcceptedInvitationResponse,
@@ -22,6 +23,7 @@ import {
   PortalInvitationResponse,
   PortalMemberResponse,
 } from "./portal.dto";
+import type { ActorContext } from "./portal.service";
 
 const INVITE_TTL_DAYS = 7;
 const TOKEN_BYTES = 32;
@@ -51,6 +53,7 @@ export class InvitationsService {
     @InjectRepository(User)
     private readonly users: Repository<User>,
     private readonly postmark: PostmarkService,
+    private readonly audit: AuditService,
   ) {
     this.portalBaseUrl = (
       this.config.get<string>("PORTAL_BASE_URL") ?? "https://app.hee.la"
@@ -61,6 +64,7 @@ export class InvitationsService {
     projectId: string,
     invitedByUserId: string,
     dto: CreateInvitationDto,
+    actor?: ActorContext,
   ): Promise<InvitationCreatedResponse> {
     const email = dto.email.trim().toLowerCase();
 
@@ -127,6 +131,17 @@ export class InvitationsService {
       throw err;
     }
 
+    if (actor) {
+      await this.audit.record({
+        ...actor,
+        projectId,
+        action: "invite.create",
+        targetType: "invitation",
+        targetId: row.invitationId,
+        metadata: { email, role: dto.role },
+      });
+    }
+
     return {
       invitationId: row.invitationId,
       email,
@@ -180,7 +195,11 @@ export class InvitationsService {
     }));
   }
 
-  async revoke(projectId: string, invitationId: string): Promise<void> {
+  async revoke(
+    projectId: string,
+    invitationId: string,
+    actor?: ActorContext,
+  ): Promise<void> {
     const row = await this.invites.findOne({
       where: { invitationId, projectId },
     });
@@ -190,6 +209,16 @@ export class InvitationsService {
     if (row.revokedAt) return; // idempotent
     row.revokedAt = new Date();
     await this.invites.save(row);
+    if (actor) {
+      await this.audit.record({
+        ...actor,
+        projectId,
+        action: "invite.revoke",
+        targetType: "invitation",
+        targetId: invitationId,
+        metadata: { email: row.email },
+      });
+    }
   }
 
   /**
@@ -200,6 +229,7 @@ export class InvitationsService {
   async accept(
     acceptingUserId: string,
     rawToken: string,
+    actor?: ActorContext,
   ): Promise<AcceptedInvitationResponse> {
     const tokenHash = sha256Hex(rawToken);
     const invite = await this.invites.findOne({
@@ -242,6 +272,17 @@ export class InvitationsService {
 
     invite.acceptedAt = new Date();
     await this.invites.save(invite);
+
+    if (actor) {
+      await this.audit.record({
+        ...actor,
+        projectId: invite.projectId,
+        action: "member.accept",
+        targetType: "member",
+        targetId: user.userId,
+        metadata: { email: user.email, role: invite.role },
+      });
+    }
 
     return {
       projectSlug: invite.project.slug,

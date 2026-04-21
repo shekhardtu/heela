@@ -47,6 +47,14 @@ export class Project {
   @Column({ type: "boolean", default: true })
   enabled!: boolean;
 
+  /**
+   * URL to a static HTML page served by the edge when the upstream returns
+   * 5xx or is unreachable. Fetched once per minute and cached; if unset, the
+   * edge serves Caddy's default 502 message.
+   */
+  @Column({ type: "varchar", length: 2048, nullable: true, name: "error_page_url" })
+  errorPageUrl!: string | null;
+
   @CreateDateColumn({ type: "timestamptz" })
   createdAt!: Date;
 

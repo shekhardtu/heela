@@ -57,6 +57,12 @@ export default async function ProjectPage(props: PageProps) {
           >
             API tokens
           </Link>
+          <Link
+            href={`/projects/${slug}/settings`}
+            className="btn-ghost text-sm"
+          >
+            Settings
+          </Link>
           <span className="rounded-full bg-ink-100 px-2 py-0.5 text-xs font-medium text-ink-500">
             {project.role}
           </span>

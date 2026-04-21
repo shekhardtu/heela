@@ -1,6 +1,5 @@
 import {
   ConflictException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
@@ -10,6 +9,7 @@ import { ApiToken } from "../../entities/api-token.entity";
 import { Domain } from "../../entities/domain.entity";
 import { ProjectMember } from "../../entities/project-member.entity";
 import { Project } from "../../entities/project.entity";
+import { AuditService } from "../audit/audit.service";
 import { generateApiToken } from "../auth/token.util";
 import {
   CreateProjectDto,
@@ -19,7 +19,15 @@ import {
   PortalTokenResponse,
   RegisterDomainDto,
   TokenCreatedResponse,
+  UpdateProjectDto,
 } from "./portal.dto";
+
+export interface ActorContext {
+  actorType: "user" | "token";
+  actorId: string;
+  actorEmail: string | null;
+  ip: string | null;
+}
 
 /**
  * Portal service — all operations are implicitly scoped by the caller's
@@ -37,6 +45,7 @@ export class PortalService {
     private readonly tokens: Repository<ApiToken>,
     @InjectRepository(Domain)
     private readonly domains: Repository<Domain>,
+    private readonly audit: AuditService,
   ) {}
 
   // ── Projects ──────────────────────────────────────────────────────────
@@ -44,6 +53,7 @@ export class PortalService {
   async createProject(
     userId: string,
     dto: CreateProjectDto,
+    actor?: ActorContext,
   ): Promise<PortalProjectResponse> {
     const slugTaken = await this.projects.findOne({ where: { slug: dto.slug } });
     if (slugTaken) throw new ConflictException("slug already in use");
@@ -65,12 +75,24 @@ export class PortalService {
       }),
     );
 
+    if (actor) {
+      await this.audit.record({
+        ...actor,
+        projectId: project.projectId,
+        action: "project.create",
+        targetType: "project",
+        targetId: project.slug,
+        metadata: { name: project.name, upstreamUrl: project.upstreamUrl },
+      });
+    }
+
     return {
       projectId: project.projectId,
       name: project.name,
       slug: project.slug,
       upstreamUrl: project.upstreamUrl,
       upstreamHost: project.upstreamHost,
+      errorPageUrl: project.errorPageUrl,
       enabled: project.enabled,
       role: "owner",
       domainCount: 0,
@@ -97,6 +119,7 @@ export class PortalService {
       slug: project.slug,
       upstreamUrl: project.upstreamUrl,
       upstreamHost: project.upstreamHost,
+      errorPageUrl: project.errorPageUrl,
       enabled: project.enabled,
       role,
       domainCount,
@@ -105,11 +128,61 @@ export class PortalService {
     };
   }
 
+  async updateProject(
+    projectId: string,
+    role: "owner" | "member",
+    dto: UpdateProjectDto,
+    actor?: ActorContext,
+  ): Promise<PortalProjectResponse> {
+    const project = await this.projects.findOne({ where: { projectId } });
+    if (!project) throw new NotFoundException("project not found");
+
+    const changed: Record<string, unknown> = {};
+    if (dto.name !== undefined && dto.name !== project.name) {
+      changed.name = { from: project.name, to: dto.name };
+      project.name = dto.name;
+    }
+    if (dto.upstreamUrl !== undefined && dto.upstreamUrl !== project.upstreamUrl) {
+      changed.upstreamUrl = { from: project.upstreamUrl, to: dto.upstreamUrl };
+      project.upstreamUrl = dto.upstreamUrl;
+    }
+    if (dto.upstreamHost !== undefined) {
+      const next = dto.upstreamHost || null;
+      if (next !== project.upstreamHost) {
+        changed.upstreamHost = { from: project.upstreamHost, to: next };
+        project.upstreamHost = next;
+      }
+    }
+    if (dto.errorPageUrl !== undefined) {
+      const next = dto.errorPageUrl || null;
+      if (next !== project.errorPageUrl) {
+        changed.errorPageUrl = { from: project.errorPageUrl, to: next };
+        project.errorPageUrl = next;
+      }
+    }
+
+    await this.projects.save(project);
+
+    if (actor && Object.keys(changed).length > 0) {
+      await this.audit.record({
+        ...actor,
+        projectId,
+        action: "project.update",
+        targetType: "project",
+        targetId: project.slug,
+        metadata: changed,
+      });
+    }
+
+    return this.getProject(projectId, role);
+  }
+
   // ── Tokens ────────────────────────────────────────────────────────────
 
   async issueToken(
     projectId: string,
     dto: IssueTokenDto,
+    actor?: ActorContext,
   ): Promise<TokenCreatedResponse> {
     const generated = generateApiToken();
     const saved = await this.tokens.save(
@@ -120,6 +193,16 @@ export class PortalService {
         name: dto.name,
       }),
     );
+    if (actor) {
+      await this.audit.record({
+        ...actor,
+        projectId,
+        action: "token.issue",
+        targetType: "token",
+        targetId: saved.tokenId,
+        metadata: { name: dto.name, prefix: generated.prefix },
+      });
+    }
     return {
       tokenId: saved.tokenId,
       name: saved.name,
@@ -146,7 +229,11 @@ export class PortalService {
     }));
   }
 
-  async revokeToken(projectId: string, tokenId: string): Promise<void> {
+  async revokeToken(
+    projectId: string,
+    tokenId: string,
+    actor?: ActorContext,
+  ): Promise<void> {
     const token = await this.tokens.findOne({
       where: { tokenId, projectId },
     });
@@ -154,6 +241,16 @@ export class PortalService {
     if (token.revokedAt) return; // idempotent
     token.revokedAt = new Date();
     await this.tokens.save(token);
+    if (actor) {
+      await this.audit.record({
+        ...actor,
+        projectId,
+        action: "token.revoke",
+        targetType: "token",
+        targetId: tokenId,
+        metadata: { name: token.name, prefix: token.prefix },
+      });
+    }
   }
 
   // ── Domains ───────────────────────────────────────────────────────────
@@ -161,6 +258,7 @@ export class PortalService {
   async registerDomain(
     projectId: string,
     dto: RegisterDomainDto,
+    actor?: ActorContext,
   ): Promise<PortalDomainResponse> {
     const hostname = dto.hostname.toLowerCase();
 
@@ -185,6 +283,16 @@ export class PortalService {
         metadata: dto.metadata ?? {},
       }),
     );
+    if (actor) {
+      await this.audit.record({
+        ...actor,
+        projectId,
+        action: "domain.register",
+        targetType: "domain",
+        targetId: hostname,
+        metadata: dto.metadata ?? {},
+      });
+    }
     return this.toDomainResponse(row);
   }
 
@@ -196,7 +304,11 @@ export class PortalService {
     return rows.map((d) => this.toDomainResponse(d));
   }
 
-  async removeDomain(projectId: string, hostname: string): Promise<void> {
+  async removeDomain(
+    projectId: string,
+    hostname: string,
+    actor?: ActorContext,
+  ): Promise<void> {
     const row = await this.domains.findOne({
       where: {
         hostname: hostname.toLowerCase(),
@@ -207,6 +319,15 @@ export class PortalService {
     if (!row) throw new NotFoundException("domain not found");
     row.removedAt = new Date();
     await this.domains.save(row);
+    if (actor) {
+      await this.audit.record({
+        ...actor,
+        projectId,
+        action: "domain.remove",
+        targetType: "domain",
+        targetId: hostname.toLowerCase(),
+      });
+    }
   }
 
   private toDomainResponse(d: Domain): PortalDomainResponse {

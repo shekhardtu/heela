@@ -5,11 +5,14 @@ import {
   Get,
   HttpCode,
   Param,
+  Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from "@nestjs/common";
 import type { FastifyRequest } from "fastify";
+import { AuditService } from "../audit/audit.service";
 import {
   SessionGuard,
   requireProjectAccess,
@@ -22,6 +25,7 @@ import {
   CreateProjectDto,
   InvitationCreatedResponse,
   IssueTokenDto,
+  PortalAuditEventResponse,
   PortalDomainResponse,
   PortalInvitationResponse,
   PortalMemberResponse,
@@ -29,8 +33,9 @@ import {
   PortalTokenResponse,
   RegisterDomainDto,
   TokenCreatedResponse,
+  UpdateProjectDto,
 } from "./portal.dto";
-import { PortalService } from "./portal.service";
+import { ActorContext, PortalService } from "./portal.service";
 
 /**
  * Portal endpoints — session-auth'd. These are what the Next.js app calls
@@ -43,6 +48,7 @@ export class PortalController {
   constructor(
     private readonly service: PortalService,
     private readonly invites: InvitationsService,
+    private readonly audit: AuditService,
   ) {}
 
   // ── Projects ──────────────────────────────────────────────────────────
@@ -52,7 +58,11 @@ export class PortalController {
     @Body() dto: CreateProjectDto,
     @Req() req: FastifyRequest,
   ): Promise<PortalProjectResponse> {
-    return this.service.createProject(req.portalAuth!.userId, dto);
+    return this.service.createProject(
+      req.portalAuth!.userId,
+      dto,
+      actorOf(req),
+    );
   }
 
   @Get("projects/:slug")
@@ -64,6 +74,16 @@ export class PortalController {
     return this.service.getProject(projectId, role);
   }
 
+  @Patch("projects/:slug")
+  async updateProject(
+    @Param("slug") slug: string,
+    @Body() dto: UpdateProjectDto,
+    @Req() req: FastifyRequest,
+  ): Promise<PortalProjectResponse> {
+    const { projectId, role } = requireProjectAccess(req, slug, "owner");
+    return this.service.updateProject(projectId, role, dto, actorOf(req));
+  }
+
   // ── Tokens ────────────────────────────────────────────────────────────
 
   @Post("projects/:slug/tokens")
@@ -73,7 +93,7 @@ export class PortalController {
     @Req() req: FastifyRequest,
   ): Promise<TokenCreatedResponse> {
     const { projectId } = requireProjectAccess(req, slug, "owner");
-    return this.service.issueToken(projectId, dto);
+    return this.service.issueToken(projectId, dto, actorOf(req));
   }
 
   @Get("projects/:slug/tokens")
@@ -93,7 +113,7 @@ export class PortalController {
     @Req() req: FastifyRequest,
   ): Promise<void> {
     const { projectId } = requireProjectAccess(req, slug, "owner");
-    await this.service.revokeToken(projectId, tokenId);
+    await this.service.revokeToken(projectId, tokenId, actorOf(req));
   }
 
   // ── Domains ───────────────────────────────────────────────────────────
@@ -105,7 +125,7 @@ export class PortalController {
     @Req() req: FastifyRequest,
   ): Promise<PortalDomainResponse> {
     const { projectId } = requireProjectAccess(req, slug);
-    return this.service.registerDomain(projectId, dto);
+    return this.service.registerDomain(projectId, dto, actorOf(req));
   }
 
   @Get("projects/:slug/domains")
@@ -125,7 +145,7 @@ export class PortalController {
     @Req() req: FastifyRequest,
   ): Promise<void> {
     const { projectId } = requireProjectAccess(req, slug);
-    await this.service.removeDomain(projectId, hostname);
+    await this.service.removeDomain(projectId, hostname, actorOf(req));
   }
 
   // ── Members + Invitations ─────────────────────────────────────────────
@@ -146,7 +166,12 @@ export class PortalController {
     @Req() req: FastifyRequest,
   ): Promise<InvitationCreatedResponse> {
     const { projectId } = requireProjectAccess(req, slug, "owner");
-    return this.invites.invite(projectId, req.portalAuth!.userId, dto);
+    return this.invites.invite(
+      projectId,
+      req.portalAuth!.userId,
+      dto,
+      actorOf(req),
+    );
   }
 
   @Get("projects/:slug/invitations")
@@ -166,7 +191,7 @@ export class PortalController {
     @Req() req: FastifyRequest,
   ): Promise<void> {
     const { projectId } = requireProjectAccess(req, slug, "owner");
-    await this.invites.revoke(projectId, invitationId);
+    await this.invites.revoke(projectId, invitationId, actorOf(req));
   }
 
   // Accept is intentionally NOT scoped to a project — the token itself
@@ -176,6 +201,47 @@ export class PortalController {
     @Body() dto: AcceptInvitationDto,
     @Req() req: FastifyRequest,
   ): Promise<AcceptedInvitationResponse> {
-    return this.invites.accept(req.portalAuth!.userId, dto.token);
+    return this.invites.accept(req.portalAuth!.userId, dto.token, actorOf(req));
   }
+
+  // ── Audit ─────────────────────────────────────────────────────────────
+
+  @Get("projects/:slug/audit")
+  async listAudit(
+    @Param("slug") slug: string,
+    @Query("limit") limit: string | undefined,
+    @Req() req: FastifyRequest,
+  ): Promise<PortalAuditEventResponse[]> {
+    const { projectId } = requireProjectAccess(req, slug);
+    const rows = await this.audit.listForProject(
+      projectId,
+      limit ? parseInt(limit, 10) : 100,
+    );
+    return rows.map((e) => ({
+      auditEventId: e.auditEventId,
+      action: e.action,
+      actorType: e.actorType,
+      actorEmail: e.actorEmail,
+      targetType: e.targetType,
+      targetId: e.targetId,
+      metadata: e.metadata,
+      ip: e.ip,
+      createdAt: e.createdAt.toISOString(),
+    }));
+  }
+}
+
+function actorOf(req: FastifyRequest): ActorContext {
+  const auth = req.portalAuth!;
+  const xff = req.headers["x-forwarded-for"];
+  const ip =
+    typeof xff === "string" && xff.length > 0
+      ? xff.split(",")[0]!.trim()
+      : req.ip ?? null;
+  return {
+    actorType: "user",
+    actorId: auth.userId,
+    actorEmail: auth.email,
+    ip,
+  };
 }

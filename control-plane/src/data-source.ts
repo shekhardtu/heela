@@ -2,6 +2,7 @@ import "reflect-metadata";
 import { join } from "path";
 import { DataSource } from "typeorm";
 import { ApiToken } from "./entities/api-token.entity";
+import { AuditEvent } from "./entities/audit-event.entity";
 import { Domain } from "./entities/domain.entity";
 import { ProjectInvitation } from "./entities/project-invitation.entity";
 import { ProjectMember } from "./entities/project-member.entity";
@@ -28,6 +29,7 @@ export const AppDataSource = new DataSource({
     Session,
     ProjectMember,
     ProjectInvitation,
+    AuditEvent,
   ],
   migrations: [join(__dirname, "migrations", "*.{ts,js}")],
   logging: process.env.TYPEORM_LOGGING === "true",

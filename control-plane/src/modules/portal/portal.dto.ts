@@ -30,6 +30,28 @@ export class CreateProjectDto {
   upstreamHost?: string;
 }
 
+export class UpdateProjectDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  @MinLength(1)
+  name?: string;
+
+  @IsOptional()
+  @IsUrl({ require_protocol: true, require_tld: false })
+  upstreamUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  upstreamHost?: string;
+
+  @IsOptional()
+  @IsUrl({ require_protocol: true, require_tld: false })
+  @MaxLength(2048)
+  errorPageUrl?: string | null;
+}
+
 export class IssueTokenDto {
   @IsString()
   @MaxLength(120)
@@ -56,6 +78,7 @@ export class PortalProjectResponse {
   slug!: string;
   upstreamUrl!: string;
   upstreamHost!: string | null;
+  errorPageUrl!: string | null;
   enabled!: boolean;
   role!: "owner" | "member";
   domainCount!: number;
@@ -125,4 +148,16 @@ export class PortalMemberResponse {
   email!: string;
   role!: "owner" | "member";
   joinedAt!: string;
+}
+
+export class PortalAuditEventResponse {
+  auditEventId!: string;
+  action!: string;
+  actorType!: "user" | "token" | "system";
+  actorEmail!: string | null;
+  targetType!: string;
+  targetId!: string;
+  metadata!: Record<string, unknown>;
+  ip!: string | null;
+  createdAt!: string;
 }

@@ -126,6 +126,22 @@ export const heeApi = {
       });
       return json(res);
     },
+    async updateProject(
+      sessionToken: string,
+      slug: string,
+      body: Partial<{
+        name: string;
+        upstreamUrl: string;
+        upstreamHost: string;
+        errorPageUrl: string | null;
+      }>,
+    ): Promise<PortalProject> {
+      const res = await raw("PATCH", `/v1/portal/projects/${encodeURIComponent(slug)}`, {
+        session: sessionToken,
+        body,
+      });
+      return json(res);
+    },
     async listTokens(sessionToken: string, slug: string): Promise<PortalToken[]> {
       const res = await raw(
         "GET",
@@ -237,8 +253,32 @@ export const heeApi = {
       });
       return json(res);
     },
+    async listAudit(
+      sessionToken: string,
+      slug: string,
+      limit = 100,
+    ): Promise<PortalAuditEvent[]> {
+      const res = await raw(
+        "GET",
+        `/v1/portal/projects/${encodeURIComponent(slug)}/audit?limit=${limit}`,
+        { session: sessionToken },
+      );
+      return json(res);
+    },
   },
 };
+
+export interface PortalAuditEvent {
+  auditEventId: string;
+  action: string;
+  actorType: "user" | "token" | "system";
+  actorEmail: string | null;
+  targetType: string;
+  targetId: string;
+  metadata: Record<string, unknown>;
+  ip: string | null;
+  createdAt: string;
+}
 
 export interface PortalProject {
   projectId: string;
@@ -246,6 +286,7 @@ export interface PortalProject {
   slug: string;
   upstreamUrl: string;
   upstreamHost: string | null;
+  errorPageUrl: string | null;
   enabled: boolean;
   role: "owner" | "member";
   domainCount: number;

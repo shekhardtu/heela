@@ -7,11 +7,12 @@ import { AuthUserController } from "./auth-user.controller";
 import { AuthUserService } from "./auth-user.service";
 import { PostmarkService } from "./postmark.service";
 import { SessionGuard } from "./session.guard";
+import { SessionPurgeService } from "./session-purge.service";
 
 @Module({
   imports: [TypeOrmModule.forFeature([User, Session, ProjectMember])],
   controllers: [AuthUserController],
-  providers: [AuthUserService, PostmarkService, SessionGuard],
+  providers: [AuthUserService, PostmarkService, SessionGuard, SessionPurgeService],
   exports: [AuthUserService, SessionGuard, PostmarkService],
 })
 export class AuthUserModule {}

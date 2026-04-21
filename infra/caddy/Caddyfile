@@ -132,6 +132,24 @@ docs.hee.la {
     }
     header X-Edge-Node "edge-1.fsn1"
   }
+
+  # Tenant-custom error page: on 5xx, fetch rendered HTML from the control
+  # plane. It looks up the project's errorPageUrl, fetches + caches it, and
+  # returns the HTML. Falls back to a built-in page if unset.
+  handle_errors {
+    @5xx expression `{err.status_code} >= 500 && {err.status_code} < 600`
+    handle @5xx {
+      rewrite * /_error-page
+      reverse_proxy localhost:5301 {
+        header_up Host api.hee.la
+        header_up X-Hee-Original-Host {host}
+        header_up X-Hee-Original-Status {err.status_code}
+        transport http {
+          dial_timeout 2s
+        }
+      }
+    }
+  }
 }
 
 # ── Catch-all HTTP ───────────────────────────────────────────────────────────

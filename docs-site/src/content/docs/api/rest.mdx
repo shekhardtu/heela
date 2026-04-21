@@ -1,0 +1,379 @@
+---
+title: REST API reference
+description: Every endpoint, every parameter, every response.
+sidebar:
+  order: 1
+---
+
+import { Tabs, TabItem, Badge, Aside, Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
+
+<div class="api-intro">
+
+<CardGrid>
+  <Card title="Base URL" icon="rocket">
+    ```
+    https://api.hee.la
+    ```
+    All endpoints are versioned under `/v1`.
+  </Card>
+  <Card title="Authentication" icon="seti:lock">
+    Send your project token as a bearer header:
+    ```
+    Authorization: Bearer hee_…
+    ```
+    Issue tokens from the [portal](https://portal.hee.la) or `POST /v1/portal/projects/{slug}/tokens`.
+  </Card>
+  <Card title="Content type" icon="document">
+    All request/response bodies are JSON. Send `Content-Type: application/json` on every POST.
+  </Card>
+  <Card title="Rate limits" icon="approve-check">
+    Per-IP limits apply to unauthenticated and auth endpoints. Authenticated control-plane calls are currently uncapped — fair-use applies.
+  </Card>
+</CardGrid>
+
+</div>
+
+## Endpoints at a glance
+
+<CardGrid>
+  <LinkCard title="Domains" href="#domains" description="Register, list, remove, and resolve customer hostnames." />
+  <LinkCard title="Auth (portal)" href="#auth-portal" description="Magic-link session endpoints backing the portal UI." />
+  <LinkCard title="Portal (session-scoped)" href="#portal-session-scoped" description="Project, token, and domain management via session cookies." />
+  <LinkCard title="Health" href="#health" description="Liveness and internal hostname validation." />
+</CardGrid>
+
+## Domains
+
+<div class="endpoint">
+
+### <span class="method method-post">POST</span> <code class="endpoint-path">/v1/edge/domains</code>
+
+Register a customer's hostname. Idempotent — re-registering the same hostname in the same project returns the existing record with merged metadata.
+
+**Body parameters**
+
+| Field      | Type   | Required | Description                                         |
+| ---------- | ------ | -------- | --------------------------------------------------- |
+| `hostname` | string | yes      | Fully-qualified domain name to route through Hee.   |
+| `metadata` | object | no       | Opaque JSON blob returned verbatim from `/resolve`. |
+
+**Request**
+
+<Tabs>
+  <TabItem label="cURL">
+    ```bash
+    curl -X POST https://api.hee.la/v1/edge/domains \
+      -H "Authorization: Bearer $HEE_TOKEN" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "hostname": "docs.customer.com",
+        "metadata": { "workspaceId": "ws_abc123" }
+      }'
+    ```
+  </TabItem>
+  <TabItem label="TypeScript">
+    ```ts
+    import { HeeClient } from "@heela/sdk";
+
+    const hee = new HeeClient({ token: process.env.HEE_TOKEN! });
+
+    await hee.domains.register({
+      hostname: "docs.customer.com",
+      metadata: { workspaceId: "ws_abc123" },
+    });
+    ```
+  </TabItem>
+  <TabItem label="fetch">
+    ```js
+    await fetch("https://api.hee.la/v1/edge/domains", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.HEE_TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        hostname: "docs.customer.com",
+        metadata: { workspaceId: "ws_abc123" },
+      }),
+    });
+    ```
+  </TabItem>
+</Tabs>
+
+**Response** <Badge text="200 OK" variant="success" />
+
+```json
+{
+  "hostname": "docs.customer.com",
+  "projectSlug": "acme-saas",
+  "verified": false,
+  "verifiedAt": null,
+  "createdAt": "2026-04-20T21:47:38.000Z",
+  "metadata": { "workspaceId": "ws_abc123" }
+}
+```
+
+**Errors**
+
+| Status | Meaning                                |
+| ------ | -------------------------------------- |
+| `400`  | hostname fails FQDN validation         |
+| `402`  | project is over its plan limit         |
+| `409`  | hostname is claimed by another project |
+
+</div>
+
+<div class="endpoint">
+
+### <span class="method method-get">GET</span> <code class="endpoint-path">/v1/edge/domains</code>
+
+List every domain owned by the token's project.
+
+**Request**
+
+<Tabs>
+  <TabItem label="cURL">
+    ```bash
+    curl https://api.hee.la/v1/edge/domains \
+      -H "Authorization: Bearer $HEE_TOKEN"
+    ```
+  </TabItem>
+  <TabItem label="TypeScript">
+    ```ts
+    const domains = await hee.domains.list();
+    ```
+  </TabItem>
+</Tabs>
+
+**Response** <Badge text="200 OK" variant="success" />
+
+```json
+[
+  {
+    "hostname": "docs.customer.com",
+    "projectSlug": "acme-saas",
+    "verified": true,
+    "verifiedAt": "2026-04-20T21:50:12.000Z",
+    "createdAt": "2026-04-20T21:47:38.000Z",
+    "metadata": { "workspaceId": "ws_abc123" }
+  },
+  {
+    "hostname": "app.customer.com",
+    "projectSlug": "acme-saas",
+    "verified": false,
+    "verifiedAt": null,
+    "createdAt": "2026-04-20T22:10:05.000Z",
+    "metadata": {}
+  }
+]
+```
+
+</div>
+
+<div class="endpoint">
+
+### <span class="method method-delete">DELETE</span> <code class="endpoint-path">/v1/edge/domains/&lbrace;hostname&rbrace;</code>
+
+Soft-delete a domain. Certificate and config are retained briefly so a re-add doesn't re-trigger issuance rate limits.
+
+**Path parameters**
+
+| Field      | Type   | Required | Description                         |
+| ---------- | ------ | -------- | ----------------------------------- |
+| `hostname` | string | yes      | URL-encoded FQDN to remove.         |
+
+**Request**
+
+<Tabs>
+  <TabItem label="cURL">
+    ```bash
+    curl -X DELETE https://api.hee.la/v1/edge/domains/docs.customer.com \
+      -H "Authorization: Bearer $HEE_TOKEN"
+    ```
+  </TabItem>
+  <TabItem label="TypeScript">
+    ```ts
+    await hee.domains.remove("docs.customer.com");
+    ```
+  </TabItem>
+</Tabs>
+
+**Response** <Badge text="204 No Content" variant="success" />
+
+**Errors**
+
+| Status | Meaning                                 |
+| ------ | --------------------------------------- |
+| `404`  | hostname is not owned by this project   |
+
+</div>
+
+<div class="endpoint">
+
+### <span class="method method-get">GET</span> <code class="endpoint-path">/v1/edge/resolve</code>
+
+Look up routing metadata for a hostname. Used by upstream apps that need to know which project (and which workspace, tenant, etc.) a request belongs to.
+
+**Query parameters**
+
+| Field      | Type   | Required | Description                              |
+| ---------- | ------ | -------- | ---------------------------------------- |
+| `hostname` | string | yes      | FQDN to resolve, unencoded in the query. |
+
+**Request**
+
+<Tabs>
+  <TabItem label="cURL">
+    ```bash
+    curl "https://api.hee.la/v1/edge/resolve?hostname=docs.customer.com" \
+      -H "Authorization: Bearer $HEE_TOKEN"
+    ```
+  </TabItem>
+</Tabs>
+
+**Response** <Badge text="200 OK" variant="success" />
+
+```json
+{
+  "hostname": "docs.customer.com",
+  "projectSlug": "acme-saas",
+  "upstreamUrl": "https://acme.pages.dev",
+  "metadata": { "workspaceId": "ws_abc123" }
+}
+```
+
+</div>
+
+## Auth (portal)
+
+<Aside type="note" title="You probably don't need these">
+The portal handles magic-link request, callback, and session cookies end-to-end. These endpoints are documented for SSR integrations and custom auth flows only.
+</Aside>
+
+<div class="endpoint endpoint-compact">
+  <div class="endpoint-head">
+    <Badge text="POST" variant="success" /> <code>/v1/auth/request-magic-link</code>
+  </div>
+  Email a signed magic-link to the user.
+</div>
+
+<div class="endpoint endpoint-compact">
+  <div class="endpoint-head">
+    <Badge text="POST" variant="success" /> <code>/v1/auth/callback</code>
+  </div>
+  Exchange a magic-link token for a session cookie.
+</div>
+
+<div class="endpoint endpoint-compact">
+  <div class="endpoint-head">
+    <Badge text="GET" variant="note" /> <code>/v1/auth/me</code>
+  </div>
+  Return the current session's user record.
+</div>
+
+<div class="endpoint endpoint-compact">
+  <div class="endpoint-head">
+    <Badge text="POST" variant="success" /> <code>/v1/auth/sign-out</code>
+  </div>
+  Invalidate the session cookie.
+</div>
+
+Request/response shapes live in the [`auth-user` module](https://github.com/shekhardtu/heela/tree/main/control-plane/src/modules/auth-user).
+
+## Portal (session-scoped)
+
+<Aside type="caution" title="Session cookie required">
+These endpoints expect a browser session cookie obtained via magic-link login — not an API token. Use them from the portal UI or server-rendered pages that proxy the session.
+</Aside>
+
+<div class="endpoint endpoint-compact">
+  <div class="endpoint-head">
+    <Badge text="POST" variant="success" /> <code>/v1/portal/projects</code>
+  </div>
+  Create a project.
+</div>
+
+<div class="endpoint endpoint-compact">
+  <div class="endpoint-head">
+    <Badge text="GET" variant="note" /> <code>{"/v1/portal/projects/{slug}"}</code>
+  </div>
+  Get project details.
+</div>
+
+<div class="endpoint endpoint-compact">
+  <div class="endpoint-head">
+    <Badge text="POST" variant="success" /> <code>{"/v1/portal/projects/{slug}/tokens"}</code>
+  </div>
+  Issue an API token. Returns the raw token <strong>once</strong> — store it immediately.
+</div>
+
+<div class="endpoint endpoint-compact">
+  <div class="endpoint-head">
+    <Badge text="GET" variant="note" /> <code>{"/v1/portal/projects/{slug}/tokens"}</code>
+  </div>
+  List tokens (hashed preview only — raw values are never replayed).
+</div>
+
+<div class="endpoint endpoint-compact">
+  <div class="endpoint-head">
+    <Badge text="DELETE" variant="danger" /> <code>{"/v1/portal/projects/{slug}/tokens/{tokenId}"}</code>
+  </div>
+  Revoke a token.
+</div>
+
+<div class="endpoint endpoint-compact">
+  <div class="endpoint-head">
+    <Badge text="POST" variant="success" /> <code>{"/v1/portal/projects/{slug}/domains"}</code>
+  </div>
+  Register a domain via the portal (mirrors the API-token path).
+</div>
+
+<div class="endpoint endpoint-compact">
+  <div class="endpoint-head">
+    <Badge text="GET" variant="note" /> <code>{"/v1/portal/projects/{slug}/domains"}</code>
+  </div>
+  List domains for the project.
+</div>
+
+<div class="endpoint endpoint-compact">
+  <div class="endpoint-head">
+    <Badge text="DELETE" variant="danger" /> <code>{"/v1/portal/projects/{slug}/domains/{hostname}"}</code>
+  </div>
+  Remove a domain.
+</div>
+
+## Health
+
+<div class="endpoint">
+
+### <span class="method method-get">GET</span> <code class="endpoint-path">/healthz</code>
+
+Unauthenticated liveness probe.
+
+**Response** <Badge text="200 OK" variant="success" />
+
+```json
+{ "status": "ok" }
+```
+
+</div>
+
+<div class="endpoint">
+
+### <span class="method method-get">GET</span> <code class="endpoint-path">/_check-hostname</code>
+
+<Badge text="Internal" variant="caution" />
+
+Called by Caddy's `on_demand_tls` hook to decide whether to issue a certificate. Returns `200` if the domain is registered, a 4xx otherwise. Not intended for external use and subject to change without notice.
+
+**Query parameters**
+
+| Field    | Type   | Required | Description                 |
+| -------- | ------ | -------- | --------------------------- |
+| `domain` | string | yes      | FQDN to check.              |
+
+</div>
+
+## OpenAPI spec
+
+A machine-readable OpenAPI 3.0 document is coming in Phase 2. Until then, this page and the [TypeScript SDK types](/sdk/typescript/) are the canonical reference.

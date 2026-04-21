@@ -5,12 +5,14 @@ import { ScheduleModule } from "@nestjs/schedule";
 import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { ApiToken } from "./entities/api-token.entity";
+import { AuditEvent } from "./entities/audit-event.entity";
 import { Domain } from "./entities/domain.entity";
 import { ProjectInvitation } from "./entities/project-invitation.entity";
 import { ProjectMember } from "./entities/project-member.entity";
 import { Project } from "./entities/project.entity";
 import { Session } from "./entities/session.entity";
 import { User } from "./entities/user.entity";
+import { AuditModule } from "./modules/audit/audit.module";
 import { AuthUserModule } from "./modules/auth-user/auth-user.module";
 import { DomainsModule } from "./modules/domains/domains.module";
 import { EdgeModule } from "./modules/edge/edge.module";
@@ -38,6 +40,7 @@ import { ProjectsModule } from "./modules/projects/projects.module";
           Session,
           ProjectMember,
           ProjectInvitation,
+          AuditEvent,
         ],
         // Autoload migrations so `start:prod` applies them — safe for small
         // schemas. Once tables get hot, switch to explicit `npm run db:migrate`
@@ -46,6 +49,7 @@ import { ProjectsModule } from "./modules/projects/projects.module";
         synchronize: false,
       }),
     }),
+    AuditModule,
     AuthUserModule,
     DomainsModule,
     EdgeModule,

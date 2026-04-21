@@ -1,6 +1,7 @@
 import {
   Controller,
   Get,
+  Headers,
   HttpCode,
   HttpStatus,
   NotFoundException,
@@ -10,6 +11,7 @@ import {
 import { SkipThrottle } from "@nestjs/throttler";
 import type { FastifyReply } from "fastify";
 import { DomainsService } from "../domains/domains.service";
+import { ErrorPageService } from "../domains/error-page.service";
 
 /**
  * Public, unauthenticated endpoints hit by Caddy directly from every edge PoP:
@@ -28,7 +30,10 @@ import { DomainsService } from "../domains/domains.service";
 @SkipThrottle()
 @Controller()
 export class EdgeController {
-  constructor(private readonly domains: DomainsService) {}
+  constructor(
+    private readonly domains: DomainsService,
+    private readonly errorPages: ErrorPageService,
+  ) {}
 
   @Get("_check-hostname")
   async checkHostname(
@@ -73,5 +78,28 @@ export class EdgeController {
   @HttpCode(200)
   health(): { status: string } {
     return { status: "ok" };
+  }
+
+  /**
+   * Rendered by Caddy's handle_errors when a customer domain's upstream 5xxs.
+   * Looks up the owning project's errorPageUrl, fetches it (1-min cache), and
+   * serves the HTML back. Falls through to a minimal default if unset.
+   *
+   * Expected headers (Caddy sets these):
+   *   X-Hee-Original-Host   — the customer hostname
+   *   X-Hee-Original-Status — upstream status (5xx)
+   */
+  @Get("_error-page")
+  async errorPage(
+    @Headers("x-hee-original-host") host: string | undefined,
+    @Headers("x-hee-original-status") status: string | undefined,
+    @Res({ passthrough: false }) res: FastifyReply,
+  ): Promise<void> {
+    const statusCode = Number(status) || 502;
+    const html = await this.errorPages.renderFor(host ?? "", statusCode);
+    res.status(statusCode);
+    res.header("Content-Type", "text/html; charset=utf-8");
+    res.header("Cache-Control", "no-store");
+    res.send(html);
   }
 }
