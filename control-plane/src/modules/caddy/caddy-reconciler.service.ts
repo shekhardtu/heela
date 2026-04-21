@@ -112,18 +112,26 @@ export class CaddyReconcilerService implements OnApplicationBootstrap {
       edgeNodeId: this.edgeNodeId,
     });
 
-    // Fetch srv0's current routes so we can preserve anything the Caddyfile
-    // owns (hee.la, app.hee.la, docs.hee.la, edge.hee.la, etc.) and replace
-    // only routes we've previously tagged with HEE_ROUTE_ID_PREFIX.
-    const routesPath = `/config/apps/http/servers/${this.serverKey}/routes`;
-    const existing = (await this.admin.getConfig<CaddyRoute[]>(routesPath)) ?? [];
+    // PUT the whole server back: Caddy's admin API rejects a bare routes
+    // array PUT to /routes (unmarshals into a single Route). Fetching the
+    // full server, mutating `routes`, and putting it back atomically
+    // avoids clobbering Caddyfile-owned server-level fields (listen,
+    // automatic_https, etc.).
+    const serverPath = `/config/apps/http/servers/${this.serverKey}`;
+    const server = await this.admin.getConfig<CaddyServerSnapshot>(serverPath);
+    if (!server) {
+      throw new Error(
+        `caddy admin has no server at ${serverPath}; is the Caddyfile loaded?`,
+      );
+    }
+    const existing: CaddyRoute[] = server.routes ?? [];
     const foreign = existing.filter((r) => !isOurRoute(r));
     // Customer routes go FIRST so per-hostname matchers take precedence over
     // any Caddyfile fallback (e.g. a catch-all on_demand_tls block).
-    const merged = [...customerRoutes, ...foreign];
+    server.routes = [...customerRoutes, ...foreign];
 
     try {
-      await this.admin.putConfig(routesPath, merged);
+      await this.admin.putConfig(serverPath, server);
       this.metrics.increment("hee_caddy_reconciles_total", { result: "success" });
     } catch (err) {
       this.metrics.increment("hee_caddy_reconciles_total", { result: "failure" });
@@ -134,6 +142,12 @@ export class CaddyReconcilerService implements OnApplicationBootstrap {
       `reconciled ${customerRoutes.length} customer route(s); ${foreign.length} Caddyfile route(s) preserved`,
     );
   }
+}
+
+interface CaddyServerSnapshot {
+  listen?: string[];
+  routes?: CaddyRoute[];
+  [k: string]: unknown;
 }
 
 function isOurRoute(r: CaddyRoute & { "@id"?: string }): boolean {
