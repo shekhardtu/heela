@@ -63,9 +63,9 @@ export class ErrorPageService {
 <style>
   body{font-family:system-ui,-apple-system,sans-serif;background:#0f172a;color:#cbd5e1;margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:2rem}
   .card{max-width:480px;background:#1e293b;border:1px solid #334155;border-radius:12px;padding:2rem;text-align:center}
-  h1{margin:0 0 .5rem 0;font-size:1.5rem;color:#f1f5f9}
-  p{margin:.5rem 0;font-size:.95rem;line-height:1.5}
-  .spinner{display:inline-block;width:1rem;height:1rem;border:2px solid #475569;border-top-color:#38bdf8;border-radius:50%;animation:spin 1s linear infinite;vertical-align:middle;margin-right:.5rem}
+  h1{margin:0 0 .75rem 0;font-size:1.35rem;color:#f1f5f9;line-height:1.3;display:flex;align-items:center;justify-content:center;gap:.6rem}
+  p{margin:.5rem 0;font-size:.95rem;line-height:1.55}
+  .spinner{display:inline-block;width:1rem;height:1rem;border:2px solid #475569;border-top-color:#38bdf8;border-radius:50%;animation:spin 1s linear infinite;flex-shrink:0}
   @keyframes spin{to{transform:rotate(360deg)}}
   .hint{color:#64748b;font-size:.8rem;margin-top:1.5rem}
   code{font-family:ui-monospace,SFMono-Regular,monospace;background:#0f172a;padding:.15rem .4rem;border-radius:4px;font-size:.85rem}
@@ -73,7 +73,7 @@ export class ErrorPageService {
 </head>
 <body>
   <div class="card">
-    <h1><span class="spinner"></span>Setting up this site</h1>
+    <h1><span class="spinner" aria-hidden="true"></span><span>Setting up this site</span></h1>
     <p>We're waiting for DNS to point <code>${safeHost}</code> at our edge.</p>
     <p class="hint">This usually takes under a minute once the CNAME is live. If you own this domain, check your DNS settings.</p>
   </div>
