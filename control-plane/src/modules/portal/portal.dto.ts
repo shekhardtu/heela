@@ -143,6 +143,16 @@ export class AcceptedInvitationResponse {
   role!: "owner" | "member";
 }
 
+export class AcceptInviteSessionResponse {
+  sessionToken!: string;
+  expiresAt!: string;
+  userId!: string;
+  email!: string;
+  projectSlug!: string;
+  projectName!: string;
+  role!: "owner" | "member";
+}
+
 export class PortalMemberResponse {
   userId!: string;
   email!: string;

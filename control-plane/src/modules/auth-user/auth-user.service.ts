@@ -99,6 +99,21 @@ export class AuthUserService {
     const user = await this.users.findOne({ where: { userId } });
     if (!user) throw new UnauthorizedException("user not found");
 
+    return this.mintSession(user.userId, user.email, user.name, ip, userAgent);
+  }
+
+  /**
+   * Mint a session for a userId we've already verified by some other means
+   * (e.g. an invitation token — the email link itself is proof of receipt).
+   * Shared by the magic-link callback and the invite-accept flow.
+   */
+  async mintSession(
+    userId: string,
+    email: string,
+    name: string | null,
+    ip: string | null,
+    userAgent: string | null,
+  ): Promise<SessionResponse> {
     const sessionToken = `hee_sess_${randomBytes(32).toString("hex")}`;
     const hash = sha256(sessionToken);
     const expiresAt = new Date(Date.now() + SESSION_TTL_DAYS * 86_400 * 1000);
@@ -106,20 +121,19 @@ export class AuthUserService {
     await this.sessions.save(
       this.sessions.create({
         tokenHash: hash,
-        userId: user.userId,
+        userId,
         expiresAt,
         ip,
         userAgent,
       }),
     );
 
-    user.lastLoginAt = new Date();
-    await this.users.save(user);
+    await this.users.update({ userId }, { lastLoginAt: new Date() });
 
     return {
-      userId: user.userId,
-      email: user.email,
-      name: user.name,
+      userId,
+      email,
+      name,
       sessionToken,
       expiresAt: expiresAt.toISOString(),
     };

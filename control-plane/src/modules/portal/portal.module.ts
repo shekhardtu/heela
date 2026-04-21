@@ -7,6 +7,7 @@ import { ProjectMember } from "../../entities/project-member.entity";
 import { Project } from "../../entities/project.entity";
 import { User } from "../../entities/user.entity";
 import { AuthUserModule } from "../auth-user/auth-user.module";
+import { InvitationsPublicController } from "./invitations.public.controller";
 import { InvitationsService } from "./invitations.service";
 import { PortalController } from "./portal.controller";
 import { PortalService } from "./portal.service";
@@ -23,7 +24,7 @@ import { PortalService } from "./portal.service";
     ]),
     AuthUserModule,
   ],
-  controllers: [PortalController],
+  controllers: [PortalController, InvitationsPublicController],
   providers: [PortalService, InvitationsService],
 })
 export class PortalModule {}

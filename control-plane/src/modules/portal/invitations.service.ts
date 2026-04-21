@@ -15,7 +15,9 @@ import { ProjectMember } from "../../entities/project-member.entity";
 import { Project } from "../../entities/project.entity";
 import { User } from "../../entities/user.entity";
 import { AuditService } from "../audit/audit.service";
+import { AuthUserService } from "../auth-user/auth-user.service";
 import { PostmarkService } from "../auth-user/postmark.service";
+import type { SessionResponse } from "../auth-user/auth-user.dto";
 import {
   AcceptedInvitationResponse,
   CreateInvitationDto,
@@ -54,6 +56,7 @@ export class InvitationsService {
     private readonly users: Repository<User>,
     private readonly postmark: PostmarkService,
     private readonly audit: AuditService,
+    private readonly auth: AuthUserService,
   ) {
     this.portalBaseUrl = (
       this.config.get<string>("PORTAL_BASE_URL") ?? "https://app.hee.la"
@@ -150,6 +153,46 @@ export class InvitationsService {
       createdAt: row.createdAt.toISOString(),
       invitedByEmail: inviter?.email ?? null,
       acceptUrl,
+    };
+  }
+
+  /**
+   * Read-only preview of an invite by its raw token. Used by the accept page
+   * to show "you're being invited to <project> as <email>" before the user
+   * clicks through. Never creates the user, never marks the invite accepted.
+   */
+  async preview(rawToken: string): Promise<{
+    email: string;
+    role: "owner" | "member";
+    projectName: string;
+    projectSlug: string;
+    inviterEmail: string | null;
+    expiresAt: string;
+  }> {
+    const tokenHash = sha256Hex(rawToken);
+    const invite = await this.invites.findOne({
+      where: { tokenHash },
+      relations: ["project"],
+    });
+    if (!invite) throw new NotFoundException("invitation not found");
+    if (invite.revokedAt)
+      throw new BadRequestException("invitation has been revoked");
+    if (invite.acceptedAt)
+      throw new BadRequestException("invitation already accepted");
+    if (invite.expiresAt.getTime() < Date.now())
+      throw new BadRequestException("invitation has expired");
+
+    const inviter = await this.users.findOne({
+      where: { userId: invite.invitedByUserId },
+    });
+
+    return {
+      email: invite.email,
+      role: invite.role,
+      projectName: invite.project.name,
+      projectSlug: invite.project.slug,
+      inviterEmail: inviter?.email ?? null,
+      expiresAt: invite.expiresAt.toISOString(),
     };
   }
 
@@ -285,6 +328,90 @@ export class InvitationsService {
     }
 
     return {
+      projectSlug: invite.project.slug,
+      projectName: invite.project.name,
+      role: invite.role,
+    };
+  }
+
+  /**
+   * One-click accept: the invite email link IS the proof of email receipt,
+   * so the invitee doesn't need to do a separate magic-link signin first.
+   *
+   * Flow:
+   *   1. Validate token + not revoked/accepted/expired
+   *   2. Find-or-create a User with the invited email
+   *   3. Attach them as a ProjectMember (idempotent)
+   *   4. Mint a session (same shape as magic-link callback)
+   *   5. Return everything the portal needs to set the cookie + redirect
+   */
+  async acceptAndMintSession(
+    rawToken: string,
+    ip: string | null,
+    userAgent: string | null,
+  ): Promise<{
+    session: SessionResponse;
+    projectSlug: string;
+    projectName: string;
+    role: "owner" | "member";
+  }> {
+    const tokenHash = sha256Hex(rawToken);
+    const invite = await this.invites.findOne({
+      where: { tokenHash },
+      relations: ["project"],
+    });
+    if (!invite) throw new NotFoundException("invitation not found");
+    if (invite.revokedAt)
+      throw new BadRequestException("invitation has been revoked");
+    if (invite.acceptedAt)
+      throw new BadRequestException("invitation already accepted");
+    if (invite.expiresAt.getTime() < Date.now())
+      throw new BadRequestException("invitation has expired");
+
+    const email = invite.email.toLowerCase();
+    let user = await this.users.findOne({ where: { email } });
+    if (!user) {
+      user = await this.users.save(this.users.create({ email }));
+    }
+
+    const existing = await this.members.findOne({
+      where: { projectId: invite.projectId, userId: user.userId },
+    });
+    if (!existing) {
+      await this.members.save(
+        this.members.create({
+          projectId: invite.projectId,
+          userId: user.userId,
+          role: invite.role,
+        }),
+      );
+    }
+
+    invite.acceptedAt = new Date();
+    await this.invites.save(invite);
+
+    await this.audit.record({
+      actorType: "user",
+      actorId: user.userId,
+      actorEmail: user.email,
+      ip,
+      projectId: invite.projectId,
+      action: "member.accept",
+      targetType: "member",
+      targetId: user.userId,
+      metadata: { email: user.email, role: invite.role, viaInviteLink: true },
+    });
+
+    const session = await this.auth.mintSession(
+      user.userId,
+      user.email,
+      user.name,
+      ip,
+      userAgent,
+    );
+
+    return {
+      session,
       projectSlug: invite.project.slug,
       projectName: invite.project.name,
       role: invite.role,

@@ -253,6 +253,29 @@ export const heeApi = {
       });
       return json(res);
     },
+    async previewInvite(token: string): Promise<InvitePreview> {
+      const res = await raw(
+        "GET",
+        `/v1/invitations/preview?token=${encodeURIComponent(token)}`,
+      );
+      return json(res);
+    },
+    async acceptInviteViaToken(
+      token: string,
+    ): Promise<{
+      sessionToken: string;
+      expiresAt: string;
+      userId: string;
+      email: string;
+      projectSlug: string;
+      projectName: string;
+      role: "owner" | "member";
+    }> {
+      const res = await raw("POST", "/v1/invitations/accept-via-token", {
+        body: { token },
+      });
+      return json(res);
+    },
     async listAudit(
       sessionToken: string,
       slug: string,
@@ -267,6 +290,15 @@ export const heeApi = {
     },
   },
 };
+
+export interface InvitePreview {
+  email: string;
+  role: "owner" | "member";
+  projectName: string;
+  projectSlug: string;
+  inviterEmail: string | null;
+  expiresAt: string;
+}
 
 export interface PortalAuditEvent {
   auditEventId: string;

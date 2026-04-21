@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getSessionUser } from "@/lib/session";
+import { HeeApiError, heeApi, type InvitePreview } from "@/lib/hee-api";
 import { acceptInviteAction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -9,22 +9,24 @@ interface PageProps {
 }
 
 /**
- * Invite landing page. Gated by the signed link in the invitation email.
- * Flow:
- *   1. Unauthenticated → show sign-in prompt with redirect back here.
- *   2. Authenticated + matching email → click "Accept" → server action.
- *   3. Mismatched email → show error, offer sign-out.
+ * Invite landing page. Shows the invitee exactly which email they're
+ * accepting as, then lets them click through with a single button. No
+ * separate magic-link signin — the email link IS the proof of receipt.
+ *
+ * The email shown here comes from the server-side preview of the invite
+ * record (keyed by the token hash). It's not something a client can forge;
+ * the user cannot accept this invite as a different email.
  */
 export default async function InviteAcceptPage(props: PageProps) {
   const { token, err } = await props.searchParams;
-  const user = await getSessionUser();
 
   if (!token) {
     return (
       <Shell>
         <h1 className="text-2xl font-semibold">Invalid invite link</h1>
         <p className="mt-3 text-sm text-ink-500">
-          This link is missing the token parameter. Check the email you were sent, or ask the inviter to send a new one.
+          This link is missing the token parameter. Check the email you were
+          sent, or ask the inviter to send a new one.
         </p>
       </Shell>
     );
@@ -33,50 +35,76 @@ export default async function InviteAcceptPage(props: PageProps) {
   if (err) {
     return (
       <Shell>
-        <ErrorState code={err} token={token} />
+        <ErrorState code={err} />
       </Shell>
     );
   }
 
-  if (!user) {
-    const redirectTo = `/invite/accept?token=${encodeURIComponent(token)}`;
+  let preview: InvitePreview;
+  try {
+    preview = await heeApi.portal.previewInvite(token);
+  } catch (e) {
+    const code =
+      e instanceof HeeApiError && e.status === 404
+        ? "not-found"
+        : e instanceof HeeApiError && e.message.includes("expired")
+          ? "expired"
+          : e instanceof HeeApiError && e.message.includes("revoked")
+            ? "revoked"
+            : e instanceof HeeApiError && e.message.includes("accepted")
+              ? "used"
+              : "failed";
     return (
       <Shell>
-        <h1 className="text-2xl font-semibold">You've been invited</h1>
-        <p className="mt-3 text-sm text-ink-500">
-          Sign in with the email this invitation was sent to, then come back to accept.
-        </p>
-        <Link
-          href={`/login?redirectTo=${encodeURIComponent(redirectTo)}`}
-          className="btn-primary mt-6 inline-flex"
-        >
-          Sign in to continue
-        </Link>
+        <ErrorState code={code} />
       </Shell>
     );
   }
 
   return (
     <Shell>
-      <h1 className="text-2xl font-semibold">Accept invitation</h1>
-      <p className="mt-3 text-sm text-ink-500">
-        You're signed in as <span className="font-mono">{user.email}</span>.
-        If this is the right email, accept below.
+      <p className="font-mono text-xs uppercase tracking-widest text-ink-500">
+        Invitation
       </p>
+      <h1 className="mt-2 text-2xl font-semibold">
+        Join <span className="text-accent-600">{preview.projectName}</span>
+      </h1>
+      <p className="mt-3 text-sm text-ink-500">
+        {preview.inviterEmail ? (
+          <>
+            <span className="font-mono">{preview.inviterEmail}</span> invited
+            you
+          </>
+        ) : (
+          "You've been invited"
+        )}{" "}
+        as{" "}
+        <span className="rounded bg-ink-100 px-1.5 py-0.5 font-medium text-ink-700">
+          {preview.role}
+        </span>
+        .
+      </p>
+
+      <div className="mt-6 rounded-lg border border-ink-200 bg-ink-50 p-4 text-sm">
+        <div className="text-xs font-medium uppercase tracking-wider text-ink-500">
+          Accepting as
+        </div>
+        <div className="mt-1 font-mono text-ink-900">{preview.email}</div>
+        <p className="mt-3 text-xs text-ink-500">
+          Clicking accept will{" "}
+          <strong>sign you in to Hee as this email</strong>. If this isn't
+          you, don't click accept — just close this tab.
+        </p>
+      </div>
+
       <form action={acceptInviteAction.bind(null, token)} className="mt-6">
-        <button className="btn-primary" type="submit">
-          Accept invitation
+        <button className="btn-primary w-full" type="submit">
+          Accept &amp; sign in as {preview.email}
         </button>
       </form>
-      <p className="mt-4 text-xs text-ink-500">
-        Invited to a different email?{" "}
-        <Link
-          href="/api/auth/sign-out"
-          className="underline"
-        >
-          Sign out
-        </Link>{" "}
-        and sign back in with the right account.
+
+      <p className="mt-4 text-center text-xs text-ink-500">
+        Expires {new Date(preview.expiresAt).toLocaleDateString()}
       </p>
     </Shell>
   );
@@ -90,51 +118,40 @@ function Shell({ children }: { children: React.ReactNode }) {
   );
 }
 
-function ErrorState({ code, token }: { code: string; token: string }) {
+function ErrorState({ code }: { code: string }) {
   const { title, body } =
-    code === "wrong-email"
+    code === "expired"
       ? {
-          title: "Wrong account",
-          body: "This invitation was sent to a different email. Sign out and sign back in with the invited address.",
+          title: "Invitation expired",
+          body: "This link expired. Ask the project owner to send a new one.",
         }
-      : code === "expired"
+      : code === "revoked"
         ? {
-            title: "Invitation expired",
-            body: "This link expired. Ask the project owner to send a new one.",
+            title: "Invitation revoked",
+            body: "The project owner revoked this invitation before you accepted.",
           }
-        : code === "revoked"
+      : code === "used"
+        ? {
+            title: "Already accepted",
+            body: "This invitation has already been used. If you should have access, sign in at app.hee.la.",
+          }
+        : code === "not-found"
           ? {
-              title: "Invitation revoked",
-              body: "The project owner revoked this invitation before you accepted.",
+              title: "Invitation not found",
+              body: "The link may be malformed. Check the email you received, or ask for a new invite.",
             }
-          : code === "not-found"
-            ? {
-                title: "Invitation not found",
-                body: "The link may be malformed. Check the email you received, or ask for a new invite.",
-              }
-            : {
-                title: "Something went wrong",
-                body: "We couldn't accept this invitation. Try again, or contact ops@hee.la.",
-              };
+          : {
+              title: "Something went wrong",
+              body: "We couldn't accept this invitation. Try again, or contact ops@hee.la.",
+            };
 
   return (
     <>
       <h1 className="text-2xl font-semibold">{title}</h1>
       <p className="mt-3 text-sm text-ink-500">{body}</p>
-      <div className="mt-6 flex gap-3">
-        <Link
-          href="/api/auth/sign-out"
-          className="btn-ghost"
-        >
-          Sign out
-        </Link>
-        <Link
-          href={`/invite/accept?token=${encodeURIComponent(token)}`}
-          className="btn-primary"
-        >
-          Retry
-        </Link>
-      </div>
+      <Link href="/projects" className="btn-ghost mt-6 inline-flex">
+        Go to projects
+      </Link>
     </>
   );
 }
